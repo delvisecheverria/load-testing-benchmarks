@@ -1,1 +1,37 @@
+name: 🟡 JMeter Basic Benchmark
+
+on:
+  workflow_dispatch:
+
+jobs:
+  jmeter-basic-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repo
+        uses: actions/checkout@v4
+
+      - name: 💾 Install JMeter
+        run: |
+          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.2.tgz
+          tar -xzf apache-jmeter-5.6.2.tgz
+          export JMETER_HOME="$PWD/apache-jmeter-5.6.2"
+          echo "$JMETER_HOME/bin" >> $GITHUB_PATH
+
+      - name: 🧪 Run Basic Load Test
+        run: |
+          echo "Running basic JMeter test..."
+          jmeter \
+            -n \
+            -t load-testing-benchmarks/Jmeter/scripts/jmeter.jmx \
+            -l results/jmeter_basic_results.jtl
+
+      - name: 📦 Upload Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-basic-results
+          path: |
+            results/
+            load-testing-benchmarks/Jmeter/scripts/jmeter.jmx
 
