@@ -1,4 +1,4 @@
-name: 🔴 JMeter Advanced Benchmark
+name: JMeter Advanced Benchmark
 
 on:
   workflow_dispatch:
