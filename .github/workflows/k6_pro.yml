@@ -12,14 +12,17 @@ jobs:
         uses: actions/checkout@v4
 
       # -------------------------------------------------------
-      # Install K6 (Método estable, universal y sin errores)
+      # Install K6 (FIX 404 – Official)
       # -------------------------------------------------------
-      - name: 🟢 Install K6 (Linux AMD64)
+      - name: 🟢 Install K6 (Official repo — FIX 404)
         run: |
-          echo "📦 Downloading latest stable K6..."
-          wget https://github.com/grafana/k6/releases/latest/download/k6-linux-amd64.tar.gz -O k6.tar.gz
-          tar -xzf k6.tar.gz
-          sudo mv k6*/k6 /usr/local/bin/k6
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates gnupg
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/k6.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/k6.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
           k6 version
 
       # -------------------------------------------------------
@@ -52,7 +55,6 @@ jobs:
           echo "Running K6 advanced test..."
           mkdir -p results
 
-          # K6 summary goes to stdout → guardar
           K6_OUT=$(mktemp)
 
           /usr/bin/time -v \
