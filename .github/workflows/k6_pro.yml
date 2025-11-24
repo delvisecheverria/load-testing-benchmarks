@@ -1,4 +1,4 @@
-name: 🟢 K6 Advanced Benchmark
+name: K6 Advanced Benchmark
 
 on:
   workflow_dispatch:
