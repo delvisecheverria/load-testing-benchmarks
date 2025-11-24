@@ -1,0 +1,352 @@
+scenarios:
+  - name: recorded_session
+    profile:
+      concurrency: 2
+      iterations: 10
+      ramp_up: 10s
+      startup_delay: 0s
+    cookie_manager:
+      enabled: false
+      cookies: []
+    requests:
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 01_GET_www.testingyes.com
+        path: /onlineshop/
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 02_GET_www.testingyes.com
+        path: /onlineshop/prices-drop
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/prices-drop
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 03_GET_www.testingyes.com
+        path: /onlineshop/new-products
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/new-products
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 04_GET_www.testingyes.com
+        path: /onlineshop/best-sales
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/best-sales
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 05_GET_www.testingyes.com
+        path: /onlineshop/content/1-delivery
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/content/1-delivery
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 06_GET_www.testingyes.com
+        path: /onlineshop/content/2-legal-notice
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/content/2-legal-notice
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 07_GET_www.testingyes.com
+        path: /onlineshop/content/3-terms-and-conditions-of-use
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: >-
+            http://www.testingyes.com/onlineshop/content/3-terms-and-conditions-of-use
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 08_GET_www.testingyes.com
+        path: /onlineshop/content/4-about-us
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/content/4-about-us
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 09_GET_www.testingyes.com
+        path: /onlineshop/content/5-secure-payment
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/content/5-secure-payment
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 10_GET_www.testingyes.com
+        path: /onlineshop/contact-us
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/contact-us
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 11_GET_www.testingyes.com
+        path: /onlineshop/sitemap
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/sitemap
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 12_GET_www.testingyes.com
+        path: /onlineshop/stores
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/stores
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 13_GET_www.testingyes.com
+        path: /onlineshop/identity
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/stores
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 14_GET_www.testingyes.com
+        path: /onlineshop/login?back=identity
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/login?back=identity
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 15_GET_www.testingyes.com
+        path: /onlineshop/order-history
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/login?back=identity
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 16_GET_www.testingyes.com
+        path: /onlineshop/login?back=history
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/login?back=history
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 17_GET_www.testingyes.com
+        path: /onlineshop/credit-slip
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/login?back=history
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 18_GET_www.testingyes.com
+        path: /onlineshop/login?back=order-slip
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/login?back=order-slip
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 19_GET_www.testingyes.com
+        path: /onlineshop/addresses
+        protocol: http
+      - body: ''
+        headers:
+          Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+          Accept-Encoding: gzip, deflate
+          Accept-Language: en-US,en;q=0.5
+          Connection: keep-alive
+          Priority: u=0, i
+          Referer: http://www.testingyes.com/onlineshop/login?back=order-slip
+          Upgrade-Insecure-Requests: '1'
+          User-Agent: >-
+            Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0)
+            Gecko/20100101 Firefox/145.0
+        host: www.testingyes.com
+        method: GET
+        name: 20_GET_www.testingyes.com
+        path: /onlineshop/login?back=addresses
+        protocol: http
+    controllers: []
