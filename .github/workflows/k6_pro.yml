@@ -11,20 +11,22 @@ jobs:
       - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
-      - name: 🟢 Install K6
+      - name: 🟢 Install K6 (Linux AMD64)
         run: |
-          curl -s https://api.github.com/repos/grafana/k6/releases/latest \
-            | grep "browser_download_url.*linux-amd64" \
-            | cut -d '"' -f 4 \
-            | xargs wget -O k6_latest.tgz
-          tar -xzf k6_latest.tgz
+          # Descargar versión correcta en tar.gz
+          wget https://github.com/grafana/k6/releases/latest/download/k6-v0.52.0-linux-amd64.tar.gz -O k6.tar.gz
+          
+          # Extraer y mover binario
+          tar -xzf k6.tar.gz
           sudo mv k6*/k6 /usr/local/bin/k6
+          
+          # Verificar instalación
           k6 version
 
       - name: 📦 Install system monitoring tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y sysstat gnuplot
+          sudo apt-get install -y sysstat gnuplot jq
 
       - name: 🧪 Start system metric monitors
         run: |
@@ -42,7 +44,7 @@ jobs:
           echo "Running K6 advanced test..."
           mkdir -p results
 
-          # K6 summary goes to stdout → lo guardamos
+          # K6 summary va a stdout → lo guardamos
           K6_OUT=$(mktemp)
 
           /usr/bin/time -v \
