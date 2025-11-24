@@ -1,7 +1,7 @@
 name: 🟣 Pulse Load Test Runner
 
 on:
-  workflow_dispatch:   # lo ejecutas manualmente desde GitHub Actions
+  workflow_dispatch:
 
 jobs:
   run-pulse-test:
@@ -15,7 +15,7 @@ jobs:
         run: |
           mkdir -p pulse_bin
           wget -O pulse_bin/pulse \
-            https://github.com/delvisecheverria/pulse/releases/latest/download/pulse-linux-amd64
+            https://github.com/delvisecheverria/pulse/releases/latest/download/pulse-linux
           chmod +x pulse_bin/pulse
 
       - name: 🚀 Run Pulse Test
@@ -31,4 +31,3 @@ jobs:
           path: |
             results/
             Pulse/scripts/pulse.yaml
-
