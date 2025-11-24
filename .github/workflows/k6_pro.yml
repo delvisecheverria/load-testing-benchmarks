@@ -1,4 +1,4 @@
-name: K6 Advanced Benchmark
+name: 🟢 K6 Advanced Benchmark
 
 on:
   workflow_dispatch:
@@ -11,23 +11,28 @@ jobs:
       - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
+      # -------------------------------------------------------
+      # Install K6 (Método estable, universal y sin errores)
+      # -------------------------------------------------------
       - name: 🟢 Install K6 (Linux AMD64)
         run: |
-          # Descargar versión correcta en tar.gz
-          wget https://github.com/grafana/k6/releases/latest/download/k6-v0.52.0-linux-amd64.tar.gz -O k6.tar.gz
-          
-          # Extraer y mover binario
+          echo "📦 Downloading latest stable K6..."
+          wget https://github.com/grafana/k6/releases/latest/download/k6-linux-amd64.tar.gz -O k6.tar.gz
           tar -xzf k6.tar.gz
           sudo mv k6*/k6 /usr/local/bin/k6
-          
-          # Verificar instalación
           k6 version
 
+      # -------------------------------------------------------
+      # Install system monitoring tools
+      # -------------------------------------------------------
       - name: 📦 Install system monitoring tools
         run: |
           sudo apt-get update
           sudo apt-get install -y sysstat gnuplot jq
 
+      # -------------------------------------------------------
+      # Start background monitors: CPU, RAM, threads
+      # -------------------------------------------------------
       - name: 🧪 Start system metric monitors
         run: |
           pidstat -durh 1 > pidstat.log &
@@ -39,12 +44,15 @@ jobs:
           (while true; do ps -T -p "$(pgrep -f k6)" >> threads_raw.log 2>/dev/null; sleep 1; done) &
           echo $! > threads_pid.txt
 
+      # -------------------------------------------------------
+      # Run the K6 load test
+      # -------------------------------------------------------
       - name: 🚀 Run K6 Advanced Load Test
         run: |
           echo "Running K6 advanced test..."
           mkdir -p results
 
-          # K6 summary va a stdout → lo guardamos
+          # K6 summary goes to stdout → guardar
           K6_OUT=$(mktemp)
 
           /usr/bin/time -v \
@@ -54,6 +62,9 @@ jobs:
 
           mv $K6_OUT results/k6_stdout.txt
 
+      # -------------------------------------------------------
+      # Stop monitors
+      # -------------------------------------------------------
       - name: 🛑 Stop background monitors
         if: always()
         run: |
@@ -61,10 +72,16 @@ jobs:
           kill $(cat top_pid.txt) || true
           kill $(cat threads_pid.txt) || true
 
+      # -------------------------------------------------------
+      # Extract number of threads (VUs representation)
+      # -------------------------------------------------------
       - name: 📊 Extract thread count timeline
         run: |
           grep "k6" threads_raw.log | awk '{print $1}' > threads.log || true
 
+      # -------------------------------------------------------
+      # Extract latency p95 / p99 and RPS from JSON
+      # -------------------------------------------------------
       - name: 📉 Extract p95+p99 & RPS
         run: |
           if [ -f results/k6_summary.json ]; then
@@ -73,6 +90,9 @@ jobs:
             cat results/k6_summary.json | jq '.metrics.http_reqs.rate' > rps.txt
           fi
 
+      # -------------------------------------------------------
+      # Upload all result artifacts
+      # -------------------------------------------------------
       - name: 📂 Upload K6 Advanced Benchmark Artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -83,6 +103,6 @@ jobs:
             top.log
             threads.log
             threads_raw.log
-            time_metrics.txt
             results/
+            time_metrics.txt
             K6/script/k6.js
