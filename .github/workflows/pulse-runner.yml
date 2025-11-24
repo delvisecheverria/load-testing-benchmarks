@@ -1,1 +1,34 @@
+name: 🟣 Pulse Load Test Runner
+
+on:
+  workflow_dispatch:   # lo ejecutas manualmente desde GitHub Actions
+
+jobs:
+  run-pulse-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repo
+        uses: actions/checkout@v4
+
+      - name: 🛠 Download Pulse binary (Linux)
+        run: |
+          mkdir -p pulse_bin
+          wget -O pulse_bin/pulse \
+            https://github.com/delvisecheverria/pulse/releases/latest/download/pulse-linux-amd64
+          chmod +x pulse_bin/pulse
+
+      - name: 🚀 Run Pulse Test
+        run: |
+          echo "Running Pulse load test..."
+          ./pulse_bin/pulse -yaml "Pulse/scripts/pulse.yaml"
+
+      - name: 📦 Upload Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulse-results
+          path: |
+            results/
+            Pulse/scripts/pulse.yaml
 
