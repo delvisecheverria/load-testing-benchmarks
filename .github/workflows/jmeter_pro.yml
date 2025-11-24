@@ -1,4 +1,4 @@
-name: 🔴 JMeter Advanced Benchmark
+name: JMeter Advanced Benchmark
 
 on:
   workflow_dispatch:
@@ -42,7 +42,7 @@ jobs:
           /usr/bin/time -v \
             jmeter \
               -n \
-              -t load-testing-benchmarks/Jmeter/scripts/jmeter.jmx \
+              -t Jmeter/scripts/jmeter.jmx \
               -l results/jmeter_results.jtl \
               -e -o results/dashboard \
             2> time_metrics.txt
@@ -81,5 +81,4 @@ jobs:
             threads_raw.log
             time_metrics.txt
             results/
-            load-testing-benchmarks/Jmeter/scripts/jmeter.jmx
-
+            Jmeter/scripts/jmeter.jmx
