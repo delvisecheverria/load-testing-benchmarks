@@ -1,4 +1,4 @@
-name: JMeter Advanced Benchmark
+name: 🔴 JMeter Advanced Benchmark
 
 on:
   workflow_dispatch:
@@ -9,6 +9,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout repo
+      # IMPORTANT: Must checkout into correct folder structure
         uses: actions/checkout@v4
 
       - name: 💾 Install JMeter
@@ -31,7 +32,20 @@ jobs:
           (while true; do top -b -n1 | head -30 >> top.log; sleep 3; done) &
           echo $! > top_pid.txt
 
-          (while true; do ps -T -p "$(pgrep -f jmeter)" >> threads_raw.log 2>/dev/null; sleep 1; done) &
+          # Start thread monitor — waits for real JMeter PID
+          (
+            echo "Waiting for JMeter PID..."
+            while [ -z "$JMETER_PID" ]; do
+              JMETER_PID=$(pgrep -f "org.apache.jmeter.NewDriver" | head -n 1)
+              sleep 1
+            done
+            echo "JMeter PID detected: $JMETER_PID"
+
+            while true; do
+              ps -T -p "$JMETER_PID" >> threads_raw.log 2>/dev/null
+              sleep 1
+            done
+          ) &
           echo $! > threads_pid.txt
 
       - name: 🚀 Run JMeter Advanced Load Test
@@ -42,7 +56,7 @@ jobs:
           /usr/bin/time -v \
             jmeter \
               -n \
-              -t Jmeter/scripts/jmeter.jmx \
+              -t load-testing-benchmarks/Jmeter/scripts/jmeter.jmx \
               -l results/jmeter_results.jtl \
               -e -o results/dashboard \
             2> time_metrics.txt
@@ -56,7 +70,7 @@ jobs:
 
       - name: 📊 Extract thread count timeline
         run: |
-          grep "java" threads_raw.log | awk '{print $1}' > threads.log || true
+          grep -v "PID" threads_raw.log | awk '{print $1}' > threads.log || true
 
       - name: 📈 Extract p95 & p99
         run: |
@@ -81,4 +95,4 @@ jobs:
             threads_raw.log
             time_metrics.txt
             results/
-            Jmeter/scripts/jmeter.jmx
+            load-testing-benchmarks/Jmeter/scripts/jmeter.jmx
