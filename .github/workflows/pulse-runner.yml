@@ -11,17 +11,17 @@ jobs:
       - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
-      - name: 🛠 Download Pulse binary (Linux)
+      - name: 🛠 Download Pulse Worker binary (Linux)
         run: |
           mkdir -p pulse_bin
-          wget -O pulse_bin/pulse \
-            https://github.com/delvisecheverria/pcr/releases/latest/download/pulse-linux
-          chmod +x pulse_bin/pulse
+          wget -O pulse_bin/worker \
+            https://github.com/delvisecheverria/pcr/releases/latest/download/worker-linux
+          chmod +x pulse_bin/worker
 
       - name: 🚀 Run Pulse Test
         run: |
           echo "Running Pulse load test..."
-          ./pulse_bin/pulse -yaml "Pulse/scripts/pulse.yaml"
+          ./pulse_bin/worker -yaml "Pulse/scripts/pulse.yaml"
 
       - name: 📦 Upload Results
         if: always()
