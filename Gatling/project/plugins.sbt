@@ -1,5 +1,5 @@
 // Plugin oficial de Gatling SBT
-addSbtPlugin("io.gatling" % "gatling-sbt" % "4.3.2")
+addSbtPlugin("io.gatling" % "gatling-sbt" % "3.9.5")
 
 // Repos necesarios para resolver dependencias
 resolvers += "Gatling OSS" at "https://repository.gatling.io/maven"
