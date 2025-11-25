@@ -1,9 +1,9 @@
 scenarios:
   - name: recorded_session
     profile:
-      concurrency: 2
-      iterations: 10
-      ramp_up: 10s
+      concurrency: 1000
+      iterations: 1
+      ramp_up: 120s
       startup_delay: 0s
     cookie_manager:
       enabled: false
