@@ -1,43 +1,62 @@
-name: Gatling Advanced Benchmark
+name: Gatling Advanced Benchmark (Standalone 3.9.5)
 
 on:
   workflow_dispatch:
 
 jobs:
-  gatling-advanced-test:
+  gatling-advanced:
     runs-on: ubuntu-latest
 
     steps:
       # -------------------------------------------------------
-      # 1. Checkout
+      # 1. Checkout repo
       # -------------------------------------------------------
-      - name: 📥 Checkout repository
+      - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
 
       # -------------------------------------------------------
-      # 2. Install Java + SBT (Required for Gatling OSS)
+      # 2. Install Java (required by Gatling)
       # -------------------------------------------------------
-      - name: ☕ Install Java + SBT
-        uses: coursier/setup-action@v1
+      - name: ☕ Install Java 11
+        uses: actions/setup-java@v4
         with:
-          jvm: temurin:11
-          apps: sbt
+          distribution: 'temurin'
+          java-version: '11'
 
 
       # -------------------------------------------------------
-      # 3. Install monitoring tools
+      # 3. Download Gatling Standalone 3.9.5 (Verified URL)
       # -------------------------------------------------------
-      - name: 📦 Install monitoring tools
+      - name: 📦 Download Gatling 3.9.5 Standalone
+        run: |
+          wget https://repo1.maven.org/maven2/io/gatling/gatling-charts-highcharts-bundle/3.9.5/gatling-charts-highcharts-bundle-3.9.5.zip -O gatling.zip
+          unzip gatling.zip
+          mv gatling-charts-highcharts-bundle-3.9.5 gatling
+
+
+      # -------------------------------------------------------
+      # 4. Copy your simulation into Gatling user-files
+      # -------------------------------------------------------
+      - name: 📁 Copy LoadTestSimulation.scala
+        run: |
+          mkdir -p gatling/user-files/simulations
+          cp Gatling/src/test/scala/simulations/LoadTestSimulation.scala gatling/user-files/simulations/
+
+
+      # -------------------------------------------------------
+      # 5. Install tools for CPU, RAM, Thread monitoring
+      # -------------------------------------------------------
+      - name: 📦 Install system monitoring tools
         run: |
           sudo apt-get update
           sudo apt-get install -y sysstat gnuplot jq procps
 
 
       # -------------------------------------------------------
-      # 4. Start background monitors (CPU / RAM / Threads)
+      # 6. Start monitors
       # -------------------------------------------------------
-      - name: 🧪 Start monitors
+      - name: 🧪 Start system monitors
         run: |
           pidstat -durh 1 > pidstat.log &
           echo $! > pidstat_pid.txt
@@ -60,17 +79,17 @@ jobs:
 
 
       # -------------------------------------------------------
-      # 5. Run Gatling test
+      # 7. Run Gatling simulation (NO INTERACTION)
       # -------------------------------------------------------
       - name: 🚀 Run Gatling Simulation
         run: |
           echo "Running Gatling..."
-          cd Gatling
-          sbt --error "Gatling / testOnly simulations.LoadTestSimulation" | tee ../gatling_stdout.txt
+          cd gatling
+          ./bin/gatling.sh -s simulations.LoadTestSimulation -rm local | tee ../gatling_stdout.txt
 
 
       # -------------------------------------------------------
-      # 6. Stop monitors
+      # 8. Stop monitors
       # -------------------------------------------------------
       - name: 🛑 Stop monitors
         if: always()
@@ -81,39 +100,44 @@ jobs:
 
 
       # -------------------------------------------------------
-      # 7. Extract Gatling logs
+      # 9. Extract Gatling metrics: p95, p99, RPS
       # -------------------------------------------------------
-      - name: 📂 Locate Gatling logs
-        id: logs
+      - name: 📉 Extract Gatling metrics
         run: |
-          REPORT=$(find Gatling/target/gatling -name simulation.log | head -1 || true)
+          REPORT=$(find gatling/results -name simulation.log | head -1)
+
           if [ -z "$REPORT" ]; then
             echo "❌ No Gatling logs found"
             exit 0
           fi
-          echo "REPORT=$REPORT" >> $GITHUB_OUTPUT
 
-
-      # -------------------------------------------------------
-      # 8. Extract p95, p99, RPS
-      # -------------------------------------------------------
-      - name: 📊 Extract p95, p99, RPS
-        if: steps.logs.outputs.REPORT != ''
-        run: |
-          REPORT="${{ steps.logs.outputs.REPORT }}"
-
+          # Percentiles
           awk -F',' '/REQUEST/ {print $9}' "$REPORT" | sort -n | awk '
-            NR==int(NR*0.95){print $1 > "p95.txt"}
-            NR==int(NR*0.99){print $1 > "p99.txt"}
+            NR>1 {
+              arr[NR]=$1
+            }
+            END {
+              p95_index=int(NR*0.95)
+              p99_index=int(NR*0.99)
+              print arr[p95_index] > "p95.txt"
+              print arr[p99_index] > "p99.txt"
+            }
           '
 
-          awk -F',' '/REQUEST/ {sum++} END{print sum/10 > "rps.txt"}' "$REPORT"
+          # Simple RPS (requests / duration)
+          DURATION=$(awk -F',' '/RUN/ {print $8}' "$REPORT" | head -1)
+          REQS=$(grep -c "REQUEST" "$REPORT")
+          if [ "$DURATION" != "" ] && [ "$DURATION" != "0" ]; then
+            echo "$((REQS / DURATION))" > rps.txt
+          else
+            echo "0" > rps.txt
+          fi
 
 
       # -------------------------------------------------------
-      # 9. Upload results
+      # 10. Upload artifacts
       # -------------------------------------------------------
-      - name: 📤 Upload Gatling Benchmark Artifacts
+      - name: 📂 Upload Gatling artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -122,8 +146,8 @@ jobs:
             pidstat.log
             top.log
             threads_raw.log
+            gatling/results
             gatling_stdout.txt
-            Gatling/target/gatling/
             p95.txt
             p99.txt
             rps.txt
