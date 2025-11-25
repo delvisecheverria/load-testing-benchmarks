@@ -8,68 +8,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------------------------------------------
-      # 1. Checkout repository
-      # -------------------------------------------------------
       - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
-      # -------------------------------------------------------
-      # 2. Install Java + SBT
-      # -------------------------------------------------------
       - name: ☕ Install Java + SBT
         uses: coursier/setup-action@v1
         with:
           jvm: adopt:11
           apps: sbt
 
-      # -------------------------------------------------------
-      # 3. Install monitoring tools
-      # -------------------------------------------------------
       - name: 📦 Install monitoring tools
         run: |
           sudo apt-get update
           sudo apt-get install -y sysstat gnuplot jq procps tree
 
-      # -------------------------------------------------------
-      # 4. DEBUG — Show Gatling project structure
-      # -------------------------------------------------------
       - name: 🔍 DEBUG Project Structure
         run: |
-          echo "===== Root directories ====="
-          ls -R .
-          echo "===== gatling folder ====="
           ls -R gatling
-          echo "===== Scala files ====="
           find gatling -name "*.scala"
 
-      # -------------------------------------------------------
-      # 5. Start CPU/RAM/Threads monitors
-      # -------------------------------------------------------
       - name: 🧪 Start monitors
         run: |
           pidstat -durh 1 > pidstat.log &
           echo $! > pidstat_pid.txt
-
-          (while true; do
-             top -b -n1 | head -30 >> top.log
-             echo "---" >> top.log
-             sleep 3
-           done) &
+          (while true; do top -b -n1 | head -30 >> top.log; sleep 3; done) &
           echo $! > top_pid.txt
-
-          (while true; do
-             PID=$(pgrep -f "gatling" || true)
-             if [ ! -z "$PID" ]; then
-               ps -T -p "$PID" >> threads_raw.log 2>/dev/null || true
-             fi
-             sleep 1
-           done) &
+          (while true; do PID=$(pgrep -f "gatling" || true); if [ ! -z "$PID" ]; then ps -T -p "$PID" >> threads_raw.log; fi; sleep 1; done) &
           echo $! > threads_pid.txt
 
-      # -------------------------------------------------------
-      # 6. Run Gatling Simulation
-      # -------------------------------------------------------
       - name: 🚀 Run Gatling Simulation
         working-directory: gatling
         run: |
@@ -85,9 +51,6 @@ jobs:
           mv "$GATLING_OUT" ../results/gatling_stdout.txt
           echo "✔ Gatling test finished"
 
-      # -------------------------------------------------------
-      # 7. Stop all monitors
-      # -------------------------------------------------------
       - name: 🛑 Stop monitors
         if: always()
         run: |
@@ -95,32 +58,16 @@ jobs:
           kill $(cat top_pid.txt) || true
           kill $(cat threads_pid.txt) || true
 
-      # -------------------------------------------------------
-      # 8. Extract metrics p95, p99, RPS
-      # -------------------------------------------------------
       - name: 📉 Extract Gatling p95, p99, RPS
         run: |
           REPORT_LOG=$(find gatling/target/gatling -name "*.log" | head -1)
-
-          if [ -z "$REPORT_LOG" ]; then
-            echo "❌ Gatling log not found"
-            exit 0
-          fi
-
-          echo "Using report: $REPORT_LOG"
-
-          # Extract response times for p95 / p99
+          if [ -z "$REPORT_LOG" ]; then echo "❌ log not found"; exit 0; fi
           awk -F',' '/REQUEST/ {print $9}' "$REPORT_LOG" | sort -n | awk '
             NR==int(NR*0.95){print $1 > "p95.txt"}
             NR==int(NR*0.99){print $1 > "p99.txt"}
           '
-
-          # Calculate RPS (requests per second) — approx over 10s window
           awk -F',' '/REQUEST/ {count++} END {print count/10 > "rps.txt"}' "$REPORT_LOG"
 
-      # -------------------------------------------------------
-      # 9. Upload ALL artifacts
-      # -------------------------------------------------------
       - name: 📂 Upload Gatling Benchmark Artifacts
         if: always()
         uses: actions/upload-artifact@v4
