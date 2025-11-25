@@ -1,4 +1,3 @@
-
 package simulations
 
 import io.gatling.core.Predef._
@@ -14,9 +13,6 @@ class LoadTestSimulation extends Simulation {
     .acceptLanguageHeader("en-US,en;q=0.5")
     .connectionHeader("keep-alive")
 
-  // ------------------------------------------
-  // Paths igual que tu K6/JMeter/Pulse test
-  // ------------------------------------------
   val paths = List(
     "/onlineshop/",
     "/onlineshop/prices-drop",
@@ -40,11 +36,8 @@ class LoadTestSimulation extends Simulation {
     "/onlineshop/login?back=addresses"
   )
 
-  // ------------------------------------------
-  // Scenario = Gatling equivalente a JMeter/K6
-  // ------------------------------------------
   val scn = scenario("Load Test Simulation")
-    .repeat(10) { // 10 iterations por usuario → igual que K6
+    .repeat(10) {
       foreach(paths, "path") {
         exec(
           http("GET ${path}")
@@ -54,13 +47,10 @@ class LoadTestSimulation extends Simulation {
       }
     }
 
-  // ------------------------------------------
-  // Injection model para equivalencia real
-  // ------------------------------------------
   setUp(
     scn.inject(
-      nothingFor(10),   // Delay inicial igual que K6 startTime=10
-      atOnceUsers(2)    // 2 usuarios virtuales igual que K6/JMeter/Pulse
+      nothingFor(10),
+      atOnceUsers(2)
     )
   ).protocols(httpProtocol)
 }
