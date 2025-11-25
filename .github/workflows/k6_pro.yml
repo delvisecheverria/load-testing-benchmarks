@@ -8,11 +8,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # -------------------------------------------------------
+      # 1. Descarga tu repositorio completo
+      # -------------------------------------------------------
       - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
+
       # -------------------------------------------------------
-      # Install K6 (método oficial – sin 404)
+      # 2. Instala K6 desde el repositorio oficial (sin errores)
       # -------------------------------------------------------
       - name: 🟢 Install K6 (Official repo — FIX 404)
         run: |
@@ -23,32 +27,35 @@ jobs:
           echo "deb [signed-by=/etc/apt/keyrings/k6.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
           sudo apt-get update
           sudo apt-get install -y k6
+          echo "Installed version:"
           k6 version
 
-      # -------------------------------------------------------
-      # Debug: Confirm script exists
-      # -------------------------------------------------------
-      - name: 🔍 Validate k6 script exists
-        run: |
-          echo "Looking for script at: K6/script/k6.js"
-          if [ ! -f "K6/script/k6.js" ]; then
-            echo "❌ ERROR: Script not found at K6/script/k6.js"
-            echo "Dumping tree:"
-            find . -maxdepth 4 -type f
-            exit 1
-          fi
-          echo "✅ Script found."
 
       # -------------------------------------------------------
-      # Install monitoring tools
+      # 3. DEBUG — Mostrar exactamente qué archivos ve GitHub Actions
       # -------------------------------------------------------
-      - name: 📦 Install monitoring tools
+      # ESTE PASO ES CLAVE para entender por qué NO encuentra tu script.
+      # Aquí veremos si 'K6/script/k6.js' realmente existe dentro del runner.
+      # GitHub UI puede mostrar algo, pero en Linux puede ser diferente
+      # por cambios de mayúsculas/minúsculas que no se commitearon bien.
+      # -------------------------------------------------------
+      - name: 🔎 DEBUG — Show entire repo
+        run: |
+          echo "📁 Full directory tree (maxdepth=5):"
+          find . -maxdepth 5 -type f | sort
+
+
+      # -------------------------------------------------------
+      # 4. Instala herramientas para monitorear CPU, RAM y threads
+      # -------------------------------------------------------
+      - name: 📦 Install system monitoring tools
         run: |
           sudo apt-get update
           sudo apt-get install -y sysstat gnuplot jq procps
 
+
       # -------------------------------------------------------
-      # Start monitors
+      # 5. Inicia monitores (CPU / RAM / Threads)
       # -------------------------------------------------------
       - name: 🧪 Start system metric monitors
         run: |
@@ -71,8 +78,9 @@ jobs:
            done) &
           echo $! > threads_pid.txt
 
+
       # -------------------------------------------------------
-      # Run K6 load test (CORRECTED)
+      # 6. Ejecuta el test K6 (AQUÍ ES DONDE FALLABA)
       # -------------------------------------------------------
       - name: 🚀 Run K6 Advanced Load Test
         run: |
@@ -81,7 +89,8 @@ jobs:
 
           K6_OUT=$(mktemp)
 
-          # Execute WITHOUT silencing errors
+          # Ejecuta el test usando la ruta que creas correcta:
+          # (Luego del DEBUG sabremos si es correcta o no)
           /usr/bin/time -v \
             k6 run ./K6/script/k6.js \
             --summary-export=results/k6_summary.json \
@@ -91,8 +100,9 @@ jobs:
           mv "$K6_OUT" results/k6_stdout.txt
           echo "✔ Done"
 
+
       # -------------------------------------------------------
-      # Stop monitors safely
+      # 7. Detiene monitores de forma segura
       # -------------------------------------------------------
       - name: 🛑 Stop background monitors
         if: always()
@@ -106,10 +116,11 @@ jobs:
             fi
           done
 
+
       # -------------------------------------------------------
-      # Extract metrics
+      # 8. Extrae p95, p99, RPS desde el summary JSON
       # -------------------------------------------------------
-      - name: 📉 Extract p95, p99, RPS
+      - name: 📉 Extract p95+p99 & RPS
         run: |
           if [ -f results/k6_summary.json ]; then
             jq '.metrics.http_req_duration.percentiles."95"' results/k6_summary.json > p95.txt
@@ -117,10 +128,11 @@ jobs:
             jq '.metrics.http_reqs.rate' results/k6_summary.json > rps.txt
           fi
 
+
       # -------------------------------------------------------
-      # Upload artifacts
+      # 9. Sube todos los artefactos del test
       # -------------------------------------------------------
-      - name: 📂 Upload Artifacts
+      - name: 📂 Upload K6 Advanced Benchmark Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
