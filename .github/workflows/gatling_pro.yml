@@ -17,14 +17,14 @@ jobs:
       # -------------------------------------------------------
       # 2. Descargar Gatling Standalone
       # -------------------------------------------------------
-      - name: ⬇️ Download Gatling Standalone
+      - name: 📦 Download Gatling Standalone
         run: |
-          wget https://repo1.maven.org/maven2/io/gatling/highcharts/gatling-charts-highcharts-bundle/3.9.5/gatling-charts-highcharts-bundle-3.9.5-bundle.zip
-          unzip gatling-charts-highcharts-bundle-3.9.5-bundle.zip
+          wget https://repo1.maven.org/maven2/io/gatling/highcharts-bundle/3.9.5/highcharts-bundle-3.9.5-bundle.zip -O gatling.zip
+          unzip gatling.zip -d .
           mv gatling-charts-highcharts-bundle-3.9.5 gatling
 
       # -------------------------------------------------------
-      # 3. Copiar tu simulación
+      # 3. Copiar simulación
       # -------------------------------------------------------
       - name: 📁 Copy Simulation
         run: |
@@ -32,16 +32,13 @@ jobs:
           cp Gatling/simulations/LoadTestSimulation.scala gatling/user-files/simulations/
 
       # -------------------------------------------------------
-      # 4. Instalar herramientas de monitoreo
+      # 4. Monitores CPU/RAM/Threads
       # -------------------------------------------------------
-      - name: 📦 Install monitoring tools
+      - name: 📊 Install system monitoring tools
         run: |
           sudo apt-get update
           sudo apt-get install -y sysstat gnuplot jq procps
 
-      # -------------------------------------------------------
-      # 5. Start CPU/RAM/Threads monitors
-      # -------------------------------------------------------
       - name: 🧪 Start monitors
         run: |
           pidstat -durh 1 > pidstat.log &
@@ -64,12 +61,11 @@ jobs:
           echo $! > threads_pid.txt
 
       # -------------------------------------------------------
-      # 6. Ejecutar Gatling Standalone (Batch mode)
+      # 5. Ejecutar Gatling sin modo interactivo
       # -------------------------------------------------------
-      - name: 🚀 Run Gatling
+      - name: 🚀 Run Gatling (non-interactive)
         env:
           GATLING_HOME: gatling
-          GATLING_BATCH: "true"   # 🔥 Elimina menú interactivo
         run: |
           echo "Running Gatling benchmark..."
           mkdir -p results
@@ -77,14 +73,14 @@ jobs:
           GATLING_OUT=$(mktemp)
 
           /usr/bin/time -v \
-            gatling/bin/gatling.sh -s simulations.LoadTestSimulation \
+            gatling/bin/gatling.sh -rm local -s simulations.LoadTestSimulation \
             2> time_metrics.txt | tee "$GATLING_OUT"
 
           mv "$GATLING_OUT" results/gatling_stdout.txt
           echo "✔ Gatling test finished"
 
       # -------------------------------------------------------
-      # 7. Stop monitors
+      # 6. Detener monitores
       # -------------------------------------------------------
       - name: 🛑 Stop monitors
         if: always()
@@ -94,27 +90,37 @@ jobs:
           kill $(cat threads_pid.txt) || true
 
       # -------------------------------------------------------
-      # 8. Extract p95, p99, RPS
+      # 7. Extraer p95 / p99 / RPS
       # -------------------------------------------------------
       - name: 📉 Extract Gatling metrics
         run: |
           REPORT=$(find gatling/results -name simulation.log | head -1)
+          echo "Found Gatling report: $REPORT"
+
           if [ -z "$REPORT" ]; then
             echo "❌ No Gatling logs found"
             exit 0
           fi
 
-          awk -F',' '/REQUEST/ {print $9}' "$REPORT" | sort -n | awk '
-            NR==int(NR*0.95){print $1 > "p95.txt"}
-            NR==int(NR*0.99){print $1 > "p99.txt"}
+          # p95 & p99 de latencia (columna 9)
+          awk -F',' '/REQUEST/ {print $10}' "$REPORT" | sort -n | awk '
+            {a[NR]=$1}
+            END{
+              p95_idx=int(NR*0.95)
+              p99_idx=int(NR*0.99)
+              print a[p95_idx] > "p95.txt"
+              print a[p99_idx] > "p99.txt"
+            }
           '
 
-          awk -F',' '/REQUEST/ {sum++} END{print sum/10 > "rps.txt"}' "$REPORT"
+          # RPS: total requests dividido entre el tiempo total (10s ramp + ejecución)
+          TOTAL_REQ=$(grep -c "REQUEST" "$REPORT")
+          echo "$TOTAL_REQ / 20" | bc -l > rps.txt
 
       # -------------------------------------------------------
-      # 9. Upload Artifacts
+      # 8. Upload final artifacts
       # -------------------------------------------------------
-      - name: 📂 Upload Gatling Artifacts
+      - name: 📂 Upload Gatling Benchmark Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
