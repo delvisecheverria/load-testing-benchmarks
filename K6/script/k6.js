@@ -2,10 +2,20 @@ import http from 'k6/http';
 import { sleep } from 'k6';
 
 export const options = {
-  vus: 2,
-  iterations: 20,
-  duration: '0s',
-  stages: [{ duration: '10s', target: 2 }],
+  // Ramp-up EXACTO como JMeter y Pulse
+  stages: [
+    { duration: '10s', target: 2 }, // ramp-up to 2 VUs over 10 seconds
+  ],
+
+  // Escenario que replica EXACTAMENTE el comportamiento de JMeter/Pulse
+  scenarios: {
+    jmeter_equivalent: {
+      executor: 'per-vu-iterations', // cada VU hace N iteraciones
+      vus: 2,                         // 🔥 2 usuarios virtuales
+      iterations: 10,                 // 🔥 10 iteraciones por usuario
+      // maxDuration eliminado ✔
+    },
+  },
 };
 
 export default function () {
