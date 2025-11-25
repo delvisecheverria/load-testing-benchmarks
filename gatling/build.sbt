@@ -7,9 +7,8 @@ lazy val root = (project in file("."))
     version := "0.1",
 
     libraryDependencies ++= Seq(
-      "io.gatling" % "gatling-core" % "3.9.5" % Test,
-      "io.gatling" % "gatling-http" % "3.9.5" % Test,
-      "io.gatling" %% "gatling-test-framework" % "3.9.5" % Test,
-      "io.gatling" % "gatling-app" % "3.9.5" % Test
+      "io.gatling" % "gatling-core" % "3.10.5" % Test,
+      "io.gatling" % "gatling-http" % "3.10.5" % Test,
+      "io.gatling" %% "gatling-test-framework" % "3.10.5" % Test
     )
   )
