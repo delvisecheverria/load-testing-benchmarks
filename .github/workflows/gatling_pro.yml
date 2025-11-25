@@ -9,13 +9,13 @@ jobs:
 
     steps:
       # -------------------------------------------------------
-      # 1. Checkout
+      # 1. Checkout repository
       # -------------------------------------------------------
       - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
       # -------------------------------------------------------
-      # 2. Install JDK + SBT for Gatling
+      # 2. Install Java + SBT
       # -------------------------------------------------------
       - name: ☕ Install Java + SBT
         uses: coursier/setup-action@v1
@@ -24,15 +24,27 @@ jobs:
           apps: sbt
 
       # -------------------------------------------------------
-      # 3. Install monitors
+      # 3. Install monitoring tools
       # -------------------------------------------------------
       - name: 📦 Install monitoring tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y sysstat gnuplot jq procps
+          sudo apt-get install -y sysstat gnuplot jq procps tree
 
       # -------------------------------------------------------
-      # 4. Start CPU/RAM/Threads monitors
+      # 4. DEBUG — Show Gatling project structure
+      # -------------------------------------------------------
+      - name: 🔍 DEBUG Project Structure
+        run: |
+          echo "===== Root directories ====="
+          ls -R .
+          echo "===== gatling folder ====="
+          ls -R gatling
+          echo "===== Scala files ====="
+          find gatling -name "*.scala"
+
+      # -------------------------------------------------------
+      # 5. Start CPU/RAM/Threads monitors
       # -------------------------------------------------------
       - name: 🧪 Start monitors
         run: |
@@ -56,9 +68,10 @@ jobs:
           echo $! > threads_pid.txt
 
       # -------------------------------------------------------
-      # 5. Run Gatling test
+      # 6. Run Gatling Simulation
       # -------------------------------------------------------
-      - name: 🚀 Run Gatling
+      - name: 🚀 Run Gatling Simulation
+        working-directory: gatling
         run: |
           echo "Running Gatling benchmark..."
           mkdir -p results
@@ -66,14 +79,14 @@ jobs:
           GATLING_OUT=$(mktemp)
 
           /usr/bin/time -v \
-            sbt "gatling:testOnly LoadTestSimulation" \
-            2> time_metrics.txt | tee "$GATLING_OUT"
+            sbt -v "gatling:testOnly LoadTestSimulation" \
+            2> ../time_metrics.txt | tee "$GATLING_OUT"
 
-          mv "$GATLING_OUT" results/gatling_stdout.txt
+          mv "$GATLING_OUT" ../results/gatling_stdout.txt
           echo "✔ Gatling test finished"
 
       # -------------------------------------------------------
-      # 6. Stop monitors
+      # 7. Stop all monitors
       # -------------------------------------------------------
       - name: 🛑 Stop monitors
         if: always()
@@ -83,29 +96,30 @@ jobs:
           kill $(cat threads_pid.txt) || true
 
       # -------------------------------------------------------
-      # 7. Extract p95, p99, RPS from Gatling reports
+      # 8. Extract metrics p95, p99, RPS
       # -------------------------------------------------------
-      - name: 📉 Extract Gatling metrics (p95, p99, RPS)
+      - name: 📉 Extract Gatling p95, p99, RPS
         run: |
-          REPORT_LOG=$(find ./target/gatling -name "*.log" | head -1)
+          REPORT_LOG=$(find gatling/target/gatling -name "*.log" | head -1)
+
           if [ -z "$REPORT_LOG" ]; then
-            echo "❌ Gatling results not found"
+            echo "❌ Gatling log not found"
             exit 0
           fi
 
           echo "Using report: $REPORT_LOG"
 
-          # p95 and p99 from column 9 (response time)
+          # Extract response times for p95 / p99
           awk -F',' '/REQUEST/ {print $9}' "$REPORT_LOG" | sort -n | awk '
             NR==int(NR*0.95){print $1 > "p95.txt"}
             NR==int(NR*0.99){print $1 > "p99.txt"}
           '
 
-          # Rough RPS calculation
-          awk -F',' '/REQUEST/ {sum++} END{print sum/10 > "rps.txt"}' "$REPORT_LOG"
+          # Calculate RPS (requests per second) — approx over 10s window
+          awk -F',' '/REQUEST/ {count++} END {print count/10 > "rps.txt"}' "$REPORT_LOG"
 
       # -------------------------------------------------------
-      # 8. Upload ALL artifacts
+      # 9. Upload ALL artifacts
       # -------------------------------------------------------
       - name: 📂 Upload Gatling Benchmark Artifacts
         if: always()
@@ -121,4 +135,5 @@ jobs:
             p99.txt
             rps.txt
             time_metrics.txt
-            Gatling/src/test/scala/LoadTestSimulation.scala
+            gatling/src/test/scala/LoadTestSimulation.scala
+            gatling/target/gatling/
