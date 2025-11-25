@@ -2,18 +2,18 @@ import http from 'k6/http';
 import { sleep } from 'k6';
 
 export const options = {
-  // 🔥 Ramp-up EXACTO equivalente a JMeter y Pulse
-  stages: [
-    { duration: '10s', target: 2 }, // subir hasta 2 VUs en 10 segundos
-  ],
-
-  // 🔥 ESCENARIO equivalente 1:1 a JMeter y Pulse
   scenarios: {
     jmeter_equivalent: {
       executor: 'per-vu-iterations',
-      vus: 2,           // 2 usuarios
-      iterations: 10,   // 10 iteraciones por usuario (total 20)
+      vus: 2,
+      iterations: 10,
+
+      // 🔥 El ramp-up ahora va dentro del escenario (compatible con run-k6-action)
+      startTime: '0s',
       gracefulStop: '0s',
+      stages: [
+        { duration: '10s', target: 2 },
+      ],
     },
   },
 };
@@ -51,10 +51,9 @@ export default function () {
     '/onlineshop/login?back=addresses',
   ];
 
-  // 🔥 Cada iteración ejecuta todas las rutas
   for (const p of paths) {
     http.get(`${host}${p}`, { headers });
   }
 
-  sleep(1); // igual que think time en JMeter y Pulse
+  sleep(1);
 }
