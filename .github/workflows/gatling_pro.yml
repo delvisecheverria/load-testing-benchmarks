@@ -55,7 +55,6 @@ jobs:
            done) &
           echo $! > threads_pid.txt
 
-
       # -------------------------------------------------------
       # 5. Run Gatling test
       # -------------------------------------------------------
@@ -67,12 +66,11 @@ jobs:
           GATLING_OUT=$(mktemp)
 
           /usr/bin/time -v \
-            sbt "gatling:testOnly BasicSimulation" \
+            sbt "gatling:testOnly LoadTestSimulation" \
             2> time_metrics.txt | tee "$GATLING_OUT"
 
           mv "$GATLING_OUT" results/gatling_stdout.txt
           echo "✔ Gatling test finished"
-
 
       # -------------------------------------------------------
       # 6. Stop monitors
@@ -84,26 +82,27 @@ jobs:
           kill $(cat top_pid.txt) || true
           kill $(cat threads_pid.txt) || true
 
-
       # -------------------------------------------------------
       # 7. Extract p95, p99, RPS from Gatling reports
       # -------------------------------------------------------
       - name: 📉 Extract Gatling metrics (p95, p99, RPS)
         run: |
-          REPORT_XML=$(find ./target/gatling -name *simulation.log | head -1)
-          if [ -z "$REPORT_XML" ]; then
-            echo "❌ Gatling result not found"
+          REPORT_LOG=$(find ./target/gatling -name "*.log" | head -1)
+          if [ -z "$REPORT_LOG" ]; then
+            echo "❌ Gatling results not found"
             exit 0
           fi
 
-          # Extract p95, p99, RPS using awk
-          awk -F',' '/REQUEST/ {print $9}' "$REPORT_XML" | sort -n | awk '
+          echo "Using report: $REPORT_LOG"
+
+          # p95 and p99 from column 9 (response time)
+          awk -F',' '/REQUEST/ {print $9}' "$REPORT_LOG" | sort -n | awk '
             NR==int(NR*0.95){print $1 > "p95.txt"}
             NR==int(NR*0.99){print $1 > "p99.txt"}
           '
 
-          awk -F',' '/REQUEST/ {sum++} END{print sum/10 > "rps.txt"}' "$REPORT_XML"
-
+          # Rough RPS calculation
+          awk -F',' '/REQUEST/ {sum++} END{print sum/10 > "rps.txt"}' "$REPORT_LOG"
 
       # -------------------------------------------------------
       # 8. Upload ALL artifacts
@@ -122,5 +121,4 @@ jobs:
             p99.txt
             rps.txt
             time_metrics.txt
-            Gatling/src/test/scala/BasicSimulation.scala
-
+            Gatling/src/test/scala/LoadTestSimulation.scala
