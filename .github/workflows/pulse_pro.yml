@@ -1,77 +1,139 @@
-name: Pulse Advanced Benchmark
+name: K6 Advanced Benchmark
 
 on:
   workflow_dispatch:
 
 jobs:
-  pulse-advanced-test:
+  k6-advanced-test:
     runs-on: ubuntu-latest
 
     steps:
+      # -------------------------------------------------------
+      # 1. Descarga tu repositorio completo
+      # -------------------------------------------------------
       - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
-      - name: 🛠 Download Pulse worker (pprof-enabled)
-        run: |
-          mkdir -p pulse_bin
-          wget -O pulse_bin/worker \
-            https://github.com/delvisecheverria/pcr/releases/latest/download/worker-linux
-          chmod +x pulse_bin/worker
 
-      - name: 📦 Install system monitoring tools
+      # -------------------------------------------------------
+      # 2. Instala K6 desde el repositorio oficial (sin errores)
+      # -------------------------------------------------------
+      - name: 🟢 Install K6 (Official repo — FIX 404)
         run: |
           sudo apt-get update
-          sudo apt-get install -y sysstat
+          sudo apt-get install -y ca-certificates gnupg
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/k6.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/k6.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          echo "Installed version:"
+          k6 version
 
+
+      # -------------------------------------------------------
+      # 3. DEBUG — Mostrar exactamente qué archivos ve GitHub Actions
+      # -------------------------------------------------------
+      - name: 🔎 DEBUG — Show entire repo
+        run: |
+          echo "📁 Full directory tree (maxdepth=5):"
+          find . -maxdepth 5 -type f | sort
+
+
+      # -------------------------------------------------------
+      # 4. Instala herramientas para monitorear CPU, RAM y threads
+      # -------------------------------------------------------
+      - name: 📦 Install monitoring tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sysstat gnuplot jq procps
+
+
+      # -------------------------------------------------------
+      # 5. Inicia monitores (CPU / RAM / Threads)
+      # -------------------------------------------------------
       - name: 🧪 Start system metric monitors
         run: |
+          # CPU y RAM por proceso
           pidstat -durh 1 > pidstat.log &
           echo $! > pidstat_pid.txt
 
-          (while true; do top -b -n1 | head -40 >> top.log; sleep 2; done) &
+          # Muestra snapshot del top
+          (while true; do
+             top -b -n1 | head -30 >> top.log
+             echo "---" >> top.log
+             sleep 3
+           done) &
           echo $! > top_pid.txt
 
-      - name: 🚀 Run Pulse with pprof enabled
+          # Threads del proceso k6
+          (while true; do
+             PID=$(pgrep -f "k6 run" || true)
+             if [ ! -z "$PID" ]; then
+               ps -T -p "$PID" >> threads_raw.log 2>/dev/null || true
+             fi
+             sleep 1
+           done) &
+          echo $! > threads_pid.txt
+
+
+      # -------------------------------------------------------
+      # 6. Ejecuta el test K6 (CORREGIDO)
+      # -------------------------------------------------------
+      - name: 🚀 Run K6 Advanced Load Test
         run: |
-          echo "Running Pulse with pprof..."
-          
-          ./pulse_bin/worker \
-            -yaml "Pulse/scripts/pulse.yaml" \
-            &
+          echo "Running K6 advanced test..."
+          mkdir -p results
 
-          WORKER_PID=$!
-          echo $WORKER_PID > worker_pid.txt
+          K6_OUT=$(mktemp)
 
-          echo "Worker PID = $WORKER_PID"
-          sleep 3
+          # Ejecuta el test con verbosity para ver requests
+          /usr/bin/time -v \
+            k6 run ./K6/script/k6.js \
+            --verbose \
+            --summary-export=results/k6_summary.json \
+            2> time_metrics.txt | tee "$K6_OUT"
 
-          # Wait for worker to finish
-          wait $WORKER_PID || true
+          echo "Exit code: $?"
+          mv "$K6_OUT" results/k6_stdout.txt
+          echo "✔ Done"
 
+
+      # -------------------------------------------------------
+      # 7. Detiene monitores de forma segura
+      # -------------------------------------------------------
       - name: 🛑 Stop background monitors
         if: always()
         run: |
-          kill $(cat pidstat_pid.txt) || true
-          kill $(cat top_pid.txt)   || true
+          for f in pidstat_pid.txt top_pid.txt threads_pid.txt; do
+            if [ -f "$f" ]; then
+              PID=$(cat "$f")
+              if kill -0 "$PID" 2>/dev/null; then
+                kill "$PID" || true
+              fi
+            fi
+          done
 
-      - name: 📥 Capture pprof profiles
+
+      # -------------------------------------------------------
+      # 8. Extrae p95, p99, RPS desde el summary JSON
+      # -------------------------------------------------------
+      - name: 📉 Extract p95+p99 & RPS
         run: |
-          mkdir -p pprof
+          if [ -f results/k6_summary.json ]; then
+            jq '.metrics.http_req_duration.percentiles."95"' results/k6_summary.json > p95.txt
+            jq '.metrics.http_req_duration.percentiles."99"' results/k6_summary.json > p99.txt
+            jq '.metrics.http_reqs.rate' results/k6_summary.json > rps.txt
+          else
+            echo "❌ No summary JSON found"
+          fi
 
-          curl http://localhost:6060/debug/pprof/goroutine?debug=2 -o pprof/goroutines.txt || true
-          curl http://localhost:6060/debug/pprof/goroutine -o pprof/goroutines.pb || true
-          curl "http://localhost:6060/debug/pprof/profile?seconds=5" -o pprof/cpu.pprof || true
-          curl http://localhost:6060/debug/pprof/heap -o pprof/heap.pprof || true
-          curl http://localhost:6060/debug/pprof/block -o pprof/block.pprof || true
 
-      - name: 📂 Upload Benchmark Artifacts
+      # -------------------------------------------------------
+      # 9. Sube todos los artefactos del test
+      # -------------------------------------------------------
+      - name: 📂 Upload K6 Advanced Benchmark Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pulse-advanced-results
-          path: |
-            pidstat.log
-            top.log
-            worker_pid.txt
-            pprof/
-            Pulse/scripts/pulse.yaml
+          name: k6-advanced-results
