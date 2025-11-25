@@ -4,51 +4,31 @@ on:
   workflow_dispatch:
 
 jobs:
-  gatling-advanced-test:
+  gatling:
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------------------------------------------
-      # 1. Checkout
-      # -------------------------------------------------------
-      - name: 📥 Checkout repo
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      # -------------------------------------------------------
-      # 2. Download Gatling Standalone (URL oficial estable)
-      # -------------------------------------------------------
-      - name: 📦 Download Gatling Standalone
-        run: |
-          wget https://downloads.gatling.io/releases/gatling-charts-highcharts-bundle-3.7.6-bundle.zip -O gatling.zip
-          unzip gatling.zip -d .
-          mv gatling-charts-highcharts-bundle-3.7.6 gatling
+      - name: ☕ Install Java + SBT
+        uses: coursier/setup-action@v1
+        with:
+          jvm: temurin:11
+          apps: sbt
 
-      # -------------------------------------------------------
-      # 3. Copy Simulation
-      # -------------------------------------------------------
-      - name: 📁 Copy Simulation
-        run: |
-          mkdir -p gatling/user-files/simulations
-          cp Gatling/simulations/LoadTestSimulation.scala gatling/user-files/simulations/
-
-      # -------------------------------------------------------
-      # 4. Install monitoring tools
-      # -------------------------------------------------------
-      - name: 📊 Install system monitoring tools
+      - name: 📦 Install system tools
         run: |
           sudo apt-get update
           sudo apt-get install -y sysstat gnuplot jq procps
 
-      # -------------------------------------------------------
-      # 5. Start monitors
-      # -------------------------------------------------------
       - name: 🧪 Start monitors
         run: |
           pidstat -durh 1 > pidstat.log &
           echo $! > pidstat_pid.txt
 
           (while true; do
-             top -b -n1 | head -30 >> top.log
+             top -b -n1 | head -40 >> top.log
              echo "---" >> top.log
              sleep 3
            done) &
@@ -57,35 +37,18 @@ jobs:
           (while true; do
              PID=$(pgrep -f "gatling" || true)
              if [ ! -z "$PID" ]; then
-               ps -T -p "$PID" >> threads_raw.log 2>/dev/null || true
+               ps -T -p "$PID" >> threads.log 2>/dev/null || true
              fi
              sleep 1
            done) &
           echo $! > threads_pid.txt
 
-      # -------------------------------------------------------
-      # 6. Run Gatling (non-interactive)
-      # -------------------------------------------------------
-      - name: 🚀 Run Gatling (non-interactive)
-        env:
-          GATLING_HOME: gatling
+      - name: 🚀 Run Gatling
         run: |
-          echo "Running Gatling benchmark..."
-          mkdir -p results
+          echo "Running Gatling..."
+          cd gatling
+          sbt "gatling:testOnly LoadTestSimulation" | tee ../gatling_stdout.txt
 
-          GATLING_OUT=$(mktemp)
-
-          # -rm local evita el menú interactivo
-          /usr/bin/time -v \
-            gatling/bin/gatling.sh -rm local -s simulations.LoadTestSimulation \
-            2> time_metrics.txt | tee "$GATLING_OUT"
-
-          mv "$GATLING_OUT" results/gatling_stdout.txt
-          echo "✔ Gatling test finished"
-
-      # -------------------------------------------------------
-      # 7. Stop monitors
-      # -------------------------------------------------------
       - name: 🛑 Stop monitors
         if: always()
         run: |
@@ -93,49 +56,32 @@ jobs:
           kill $(cat top_pid.txt) || true
           kill $(cat threads_pid.txt) || true
 
-      # -------------------------------------------------------
-      # 8. Extract metrics (p95 / p99 / RPS)
-      # -------------------------------------------------------
-      - name: 📉 Extract Gatling metrics
+      - name: 📊 Extract Gatling metrics
         run: |
-          REPORT=$(find gatling/results -name simulation.log | head -1)
-          echo "Found Gatling report: $REPORT"
-
+          REPORT=$(find gatling/target/gatling -name simulation.log | head -1)
           if [ -z "$REPORT" ]; then
             echo "❌ No Gatling logs found"
-            exit 0
+            exit 1
           fi
 
-          # p95 / p99 (columna 10)
-          awk -F',' '/REQUEST/ {print $10}' "$REPORT" | sort -n | awk '
-            {a[NR]=$1}
-            END{
-              p95=int(NR*0.95)
-              p99=int(NR*0.99)
-              print a[p95] > "p95.txt"
-              print a[p99] > "p99.txt"
-            }
+          # p95 / p99 extract
+          awk -F',' '/REQUEST/ {print $9}' "$REPORT" | sort -n | awk '
+            NR==int(NR*0.95){print $1 > "p95.txt"}
+            NR==int(NR*0.99){print $1 > "p99.txt"}
           '
 
-          # RPS = total requests / 20s (aprox)
-          TOTAL_REQ=$(grep -c "REQUEST" "$REPORT")
-          echo "$TOTAL_REQ / 20" | bc -l > rps.txt
+          awk -F',' '/REQUEST/ {sum++} END{print sum/60 > "rps.txt"}' "$REPORT"
 
-      # -------------------------------------------------------
-      # 9. Upload artifacts
-      # -------------------------------------------------------
-      - name: 📂 Upload Gatling Benchmark Artifacts
-        if: always()
+      - name: 📤 Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: gatling-advanced-results
+          name: gatling-results
           path: |
+            gatling_stdout.txt
             pidstat.log
             top.log
-            threads_raw.log
-            results/
+            threads.log
             p95.txt
             p99.txt
             rps.txt
-            time_metrics.txt
-            Gatling/simulations/LoadTestSimulation.scala
+            gatling/target/gatling/**/*
