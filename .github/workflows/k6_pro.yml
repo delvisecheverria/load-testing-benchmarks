@@ -23,47 +23,48 @@ jobs:
           echo "deb [signed-by=/etc/apt/keyrings/k6.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
           sudo apt-get update
           sudo apt-get install -y k6
-          echo "✅ k6 installed:"
-          which k6
           k6 version
 
       # -------------------------------------------------------
-      # (Opcional, pero útil) Ver estructura del repo
+      # Debug: Confirm script exists
       # -------------------------------------------------------
-      - name: 🔍 List repo structure (debug)
+      - name: 🔍 Validate k6 script exists
         run: |
-          echo "📁 Repository tree (depth 4):"
-          find . -maxdepth 4 -type f | sort
+          echo "Looking for script at: K6/script/k6.js"
+          if [ ! -f "K6/script/k6.js" ]; then
+            echo "❌ ERROR: Script not found at K6/script/k6.js"
+            echo "Dumping tree:"
+            find . -maxdepth 4 -type f
+            exit 1
+          fi
+          echo "✅ Script found."
 
       # -------------------------------------------------------
-      # Install system monitoring tools
+      # Install monitoring tools
       # -------------------------------------------------------
-      - name: 📦 Install system monitoring tools
+      - name: 📦 Install monitoring tools
         run: |
           sudo apt-get update
           sudo apt-get install -y sysstat gnuplot jq procps
 
       # -------------------------------------------------------
-      # Start background monitors: CPU, RAM, threads
+      # Start monitors
       # -------------------------------------------------------
       - name: 🧪 Start system metric monitors
         run: |
-          # Monitor CPU / RAM por proceso cada 1s
           pidstat -durh 1 > pidstat.log &
           echo $! > pidstat_pid.txt
 
-          # Snapshot de top cada 3s
           (while true; do
              top -b -n1 | head -30 >> top.log
-             echo "----" >> top.log
+             echo "---" >> top.log
              sleep 3
            done) &
           echo $! > top_pid.txt
 
-          # Monitor de threads del proceso k6 (cuando exista)
           (while true; do
              PID=$(pgrep -f "k6 run" || true)
-             if [ -n "$PID" ]; then
+             if [ ! -z "$PID" ]; then
                ps -T -p "$PID" >> threads_raw.log 2>/dev/null || true
              fi
              sleep 1
@@ -71,29 +72,27 @@ jobs:
           echo $! > threads_pid.txt
 
       # -------------------------------------------------------
-      # Run the K6 load test
+      # Run K6 load test (CORRECTED)
       # -------------------------------------------------------
       - name: 🚀 Run K6 Advanced Load Test
         run: |
           echo "Running K6 advanced test..."
           mkdir -p results
 
-          # Archivo temporal para capturar stdout
           K6_OUT=$(mktemp)
 
-          # /usr/bin/time -v captura métricas de sistema
-          # k6 run ejecuta el script y exporta summary en JSON
-          set -e
+          # Execute WITHOUT silencing errors
           /usr/bin/time -v \
-            k6 run K6/script/k6.js \
+            k6 run ./K6/script/k6.js \
             --summary-export=results/k6_summary.json \
             2> time_metrics.txt | tee "$K6_OUT"
 
+          echo "Exit code: $?"
           mv "$K6_OUT" results/k6_stdout.txt
-          echo "✅ K6 test finished"
+          echo "✔ Done"
 
       # -------------------------------------------------------
-      # Stop monitors (manejo seguro de PIDs)
+      # Stop monitors safely
       # -------------------------------------------------------
       - name: 🛑 Stop background monitors
         if: always()
@@ -102,54 +101,26 @@ jobs:
             if [ -f "$f" ]; then
               PID=$(cat "$f")
               if kill -0 "$PID" 2>/dev/null; then
-                echo "Stopping monitor PID $PID from $f"
                 kill "$PID" || true
-              else
-                echo "Process $PID from $f is already stopped."
               fi
-            else
-              echo "PID file $f not found, skipping."
             fi
           done
 
       # -------------------------------------------------------
-      # Extract number of threads (VUs representation)
+      # Extract metrics
       # -------------------------------------------------------
-      - name: 📊 Extract thread count timeline
-        run: |
-          if [ -f threads_raw.log ]; then
-            # Ajusta este awk según el formato que veas en threads_raw.log
-            # Aquí asumimos que la primera columna es el PID/hilo
-            grep -v "PID" threads_raw.log | awk '{print $1}' > threads.log || true
-          else
-            echo "threads_raw.log not found, skipping threads.log generation"
-          fi
-
-      # -------------------------------------------------------
-      # Extract latency p95 / p99 and RPS from JSON
-      # -------------------------------------------------------
-      - name: 📉 Extract p95+p99 & RPS
+      - name: 📉 Extract p95, p99, RPS
         run: |
           if [ -f results/k6_summary.json ]; then
-            echo "Extracting metrics from results/k6_summary.json"
-            cat results/k6_summary.json | jq '.metrics.http_req_duration.percentiles."95"' > p95.txt
-            cat results/k6_summary.json | jq '.metrics.http_req_duration.percentiles."99"' > p99.txt
-            cat results/k6_summary.json | jq '.metrics.http_reqs.rate' > rps.txt
-
-            echo "p95 (ms):"
-            cat p95.txt
-            echo "p99 (ms):"
-            cat p99.txt
-            echo "RPS:"
-            cat rps.txt
-          else
-            echo "results/k6_summary.json not found, skipping metric extraction"
+            jq '.metrics.http_req_duration.percentiles."95"' results/k6_summary.json > p95.txt
+            jq '.metrics.http_req_duration.percentiles."99"' results/k6_summary.json > p99.txt
+            jq '.metrics.http_reqs.rate' results/k6_summary.json > rps.txt
           fi
 
       # -------------------------------------------------------
-      # Upload all result artifacts
+      # Upload artifacts
       # -------------------------------------------------------
-      - name: 📂 Upload K6 Advanced Benchmark Artifacts
+      - name: 📂 Upload Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -157,11 +128,10 @@ jobs:
           path: |
             pidstat.log
             top.log
-            threads.log
             threads_raw.log
             results/
-            time_metrics.txt
             p95.txt
             p99.txt
             rps.txt
+            time_metrics.txt
             K6/script/k6.js
