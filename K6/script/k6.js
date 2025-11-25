@@ -7,13 +7,8 @@ export const options = {
       executor: 'per-vu-iterations',
       vus: 2,
       iterations: 10,
-
-      // 🔥 El ramp-up ahora va dentro del escenario (compatible con run-k6-action)
-      startTime: '0s',
-      gracefulStop: '0s',
-      stages: [
-        { duration: '10s', target: 2 },
-      ],
+      startTime: '10s',    // 🔥 Simula ramp-up de 10s (equivalente a stages)
+      gracefulStop: '0s'
     },
   },
 };
