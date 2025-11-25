@@ -1,3 +1,4 @@
+
 name: Pulse Advanced Benchmark
 
 on:
@@ -8,99 +9,70 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------------------------------------------
-      # 1. Checkout repo
-      # -------------------------------------------------------
       - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
-
-      # -------------------------------------------------------
-      # 2. Install Go and build Pulse binary
-      # -------------------------------------------------------
-      - name: 🛠 Install Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-
-      - name: ⚙️ Build Pulse
+      - name: 🛠 Download Pulse worker (pprof-enabled)
         run: |
-          echo "Building Pulse..."
-          go mod tidy
-          go build -o pulse ./cmd/pulse
-          ls -lh pulse
+          mkdir -p pulse_bin
+          wget -O pulse_bin/worker \
+            https://github.com/delvisecheverria/pcr/releases/latest/download/worker-linux
+          chmod +x pulse_bin/worker
 
-
-      # -------------------------------------------------------
-      # 3. DEBUG — show repo tree
-      # -------------------------------------------------------
-      - name: 🔎 DEBUG — Show repository structure
-        run: |
-          echo "📁 Repository tree:"
-          find . -maxdepth 5 -type f | sort
-
-
-      # -------------------------------------------------------
-      # 4. Install monitoring tools
-      # -------------------------------------------------------
       - name: 📦 Install system monitoring tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y sysstat gnuplot jq procps
+          sudo apt-get install -y sysstat
 
-
-      # -------------------------------------------------------
-      # 5. Start monitors (CPU / RAM / threads)
-      # -------------------------------------------------------
-      - name: 🧪 Start monitors
+      - name: 🧪 Start system metric monitors
         run: |
-          # CPU y RAM por proceso cada 1s
           pidstat -durh 1 > pidstat.log &
           echo $! > pidstat_pid.txt
 
-          # Snapshot del top cada 3s
-          (while true; do
-             top -b -n1 | head -30 >> top.log
-             echo "---" >> top.log
-             sleep 3
-           done) &
+          (while true; do top -b -n1 | head -40 >> top.log; sleep 2; done) &
           echo $! > top_pid.txt
 
-          # Monitor de threads reales del proceso Pulse
-          (while true; do
-             PID=$(pgrep -f "./pulse run" || pgrep -f "pulse run" || true)
-             if [ ! -z "$PID" ]; then
-               ps -T -p "$PID" >> threads_raw.log 2>/dev/null || true
-             fi
-             sleep 1
-           done) &
-          echo $! > threads_pid.txt
-
-
-      # -------------------------------------------------------
-      # 6. Run Pulse test
-      # -------------------------------------------------------
-      - name: 🚀 Run Pulse Load Test
+      - name: 🚀 Run Pulse with pprof enabled
         run: |
-          echo "Running Pulse load test..."
-          mkdir -p results
+          echo "Running Pulse with pprof..."
+          
+          ./pulse_bin/worker \
+            -yaml "Pulse/scripts/pulse.yaml" \
+            &
 
-          PULSE_OUT=$(mktemp)
+          WORKER_PID=$!
+          echo $WORKER_PID > worker_pid.txt
 
-          /usr/bin/time -v \
-            ./pulse run Pulse/scripts/pulse.yaml \
-            --output=results/pulse_results.json \
-            2> time_metrics.txt | tee "$PULSE_OUT"
+          echo "Worker PID = $WORKER_PID"
+          sleep 3
 
-          mv "$PULSE_OUT" results/pulse_stdout.txt
-          echo "✔ Pulse test finished"
+          # Wait for worker to finish
+          wait $WORKER_PID || true
 
-
-      # -------------------------------------------------------
-      # 7. Stop monitors
-      # -------------------------------------------------------
-      - name: 🛑 Stop monitors
+      - name: 🛑 Stop background monitors
         if: always()
         run: |
-          for f in pidstat_pid.txt top_pid.txt threads_pid.txt; do
-            if [ -f "$f" ]; then
+          kill $(cat pidstat_pid.txt) || true
+          kill $(cat top_pid.txt)   || true
+
+      - name: 📥 Capture pprof profiles
+        run: |
+          mkdir -p pprof
+
+          curl http://localhost:6060/debug/pprof/goroutine?debug=2 -o pprof/goroutines.txt || true
+          curl http://localhost:6060/debug/pprof/goroutine -o pprof/goroutines.pb || true
+          curl "http://localhost:6060/debug/pprof/profile?seconds=5" -o pprof/cpu.pprof || true
+          curl http://localhost:6060/debug/pprof/heap -o pprof/heap.pprof || true
+          curl http://localhost:6060/debug/pprof/block -o pprof/block.pprof || true
+
+      - name: 📂 Upload Benchmark Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulse-advanced-results
+          path: |
+            pidstat.log
+            top.log
+            worker_pid.txt
+            pprof/
+            Pulse/scripts/pulse.yaml
