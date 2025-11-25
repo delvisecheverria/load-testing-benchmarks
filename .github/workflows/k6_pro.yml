@@ -8,22 +8,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      # -------------------------------------------------------
+      # 1. Checkout repo
+      # -------------------------------------------------------
+      - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
-      # Install monitoring tools
-      - name: Install monitoring tools
+      # -------------------------------------------------------
+      # 2. Install monitoring tools (CPU/RAM/threads)
+      # -------------------------------------------------------
+      - name: 📦 Install monitoring tools
         run: |
           sudo apt-get update
           sudo apt-get install -y sysstat gnuplot jq procps
 
-      # Start monitors
-      - name: Start monitors
+      # -------------------------------------------------------
+      # 3. Start monitors
+      # -------------------------------------------------------
+      - name: 🧪 Start system metric monitors
         run: |
           pidstat -durh 1 > pidstat.log &
           echo $! > pidstat_pid.txt
 
-          (while true; do top -b -n1 | head -30 >> top.log; sleep 3; done) &
+          (while true; do
+             top -b -n1 | head -30 >> top.log
+             echo "---" >> top.log
+             sleep 3
+           done) &
           echo $! > top_pid.txt
 
           (while true; do
@@ -35,36 +46,64 @@ jobs:
            done) &
           echo $! > threads_pid.txt
 
-      # Install k6 the correct way
-      - name: Setup k6
+      # -------------------------------------------------------
+      # 4. Install k6 the correct way
+      # -------------------------------------------------------
+      - name: 🟢 Setup K6 (Official)
         uses: grafana/setup-k6-action@v1
 
-      # Run k6 using official wrapper
-      - name: Run K6 Test
+      # -------------------------------------------------------
+      # 5. Create results folder (IMPORTANT FIX)
+      # -------------------------------------------------------
+      - name: 📁 Create results folder for summary JSON
+        run: |
+          echo "Working directory:"
+          pwd
+          mkdir -p results
+          ls -la
+
+      # -------------------------------------------------------
+      # 6. Run K6 using wrapper (produces real execution)
+      # -------------------------------------------------------
+      - name: 🚀 Run K6 Test
         id: k6_run
         uses: grafana/run-k6-action@v1
         with:
           path: ./K6/script/k6.js
           debug: true
           flags: --summary-export=results/k6_summary.json
+          fail-fast: false
+          parallel: false
 
-      # Stop monitors
-      - name: Stop monitors
+      # -------------------------------------------------------
+      # 7. Stop monitoring processes
+      # -------------------------------------------------------
+      - name: 🛑 Stop background monitors
         if: always()
         run: |
           kill $(cat pidstat_pid.txt) || true
           kill $(cat top_pid.txt) || true
           kill $(cat threads_pid.txt) || true
 
-      # Extract metrics
-      - name: Extract metrics
+      # -------------------------------------------------------
+      # 8. Extract metrics (p95, p99, RPS)
+      # -------------------------------------------------------
+      - name: 📉 Extract p95+p99 & RPS
         run: |
-          jq '.metrics.http_req_duration.percentiles."95"' results/k6_summary.json > p95.txt
-          jq '.metrics.http_req_duration.percentiles."99"' results/k6_summary.json > p99.txt
-          jq '.metrics.http_reqs.rate' results/k6_summary.json > rps.txt
+          if [ -f results/k6_summary.json ]; then
+            jq '.metrics.http_req_duration.percentiles."95"' results/k6_summary.json > p95.txt
+            jq '.metrics.http_req_duration.percentiles."99"' results/k6_summary.json > p99.txt
+            jq '.metrics.http_reqs.rate' results/k6_summary.json > rps.txt
+          else
+            echo "❌ results/k6_summary.json not found"
+            echo "Skipping jq metric extraction"
+          fi
 
-      # Upload artifacts
-      - name: Upload artifacts
+      # -------------------------------------------------------
+      # 9. Upload every artifact
+      # -------------------------------------------------------
+      - name: 📂 Upload K6 Advanced Benchmark Artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: k6-advanced-results
@@ -76,3 +115,4 @@ jobs:
             p95.txt
             p99.txt
             rps.txt
+            K6/script/k6.js
