@@ -34,11 +34,6 @@ jobs:
       # -------------------------------------------------------
       # 3. DEBUG — Mostrar exactamente qué archivos ve GitHub Actions
       # -------------------------------------------------------
-      # ESTE PASO ES CLAVE para entender por qué NO encuentra tu script.
-      # Aquí veremos si 'K6/script/k6.js' realmente existe dentro del runner.
-      # GitHub UI puede mostrar algo, pero en Linux puede ser diferente
-      # por cambios de mayúsculas/minúsculas que no se commitearon bien.
-      # -------------------------------------------------------
       - name: 🔎 DEBUG — Show entire repo
         run: |
           echo "📁 Full directory tree (maxdepth=5):"
@@ -59,9 +54,11 @@ jobs:
       # -------------------------------------------------------
       - name: 🧪 Start system metric monitors
         run: |
+          # CPU y RAM por proceso
           pidstat -durh 1 > pidstat.log &
           echo $! > pidstat_pid.txt
 
+          # snapshot del top cada 3s
           (while true; do
              top -b -n1 | head -30 >> top.log
              echo "---" >> top.log
@@ -69,6 +66,7 @@ jobs:
            done) &
           echo $! > top_pid.txt
 
+          # threads reales del proceso k6
           (while true; do
              PID=$(pgrep -f "k6 run" || true)
              if [ ! -z "$PID" ]; then
@@ -80,7 +78,7 @@ jobs:
 
 
       # -------------------------------------------------------
-      # 6. Ejecuta el test K6 (AQUÍ ES DONDE FALLABA)
+      # 6. Ejecuta el test K6
       # -------------------------------------------------------
       - name: 🚀 Run K6 Advanced Load Test
         run: |
@@ -89,10 +87,9 @@ jobs:
 
           K6_OUT=$(mktemp)
 
-          # Ejecuta el test usando la ruta que creas correcta:
-          # (Luego del DEBUG sabremos si es correcta o no)
           /usr/bin/time -v \
             k6 run ./K6/script/k6.js \
+            --verbose \
             --summary-export=results/k6_summary.json \
             2> time_metrics.txt | tee "$K6_OUT"
 
@@ -126,6 +123,8 @@ jobs:
             jq '.metrics.http_req_duration.percentiles."95"' results/k6_summary.json > p95.txt
             jq '.metrics.http_req_duration.percentiles."99"' results/k6_summary.json > p99.txt
             jq '.metrics.http_reqs.rate' results/k6_summary.json > rps.txt
+          else
+            echo "❌ No summary JSON found"
           fi
 
 
