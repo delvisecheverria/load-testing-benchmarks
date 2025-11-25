@@ -10,4 +10,3 @@ lazy val root = (project in file("."))
       "io.gatling" % "gatling-http" % "3.9.5" % Test
     )
   )
-
