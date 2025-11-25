@@ -2,15 +2,11 @@ import http from 'k6/http';
 import { sleep } from 'k6';
 
 export const options = {
-  scenarios: {
-    jmeter_equivalent: {
-      executor: 'per-vu-iterations',
-      vus: 2,
-      iterations: 10,
-      startTime: '10s',    // 🔥 Simula ramp-up de 10s (equivalente a stages)
-      gracefulStop: '0s'
-    },
-  },
+  stages: [
+    { duration: '120s', target: 1000 },   // ramp-up hasta 1000 users
+    { duration: '300s', target: 1000 },   // tiempo para que TODOS terminen su flujo
+  ],
+  gracefulStop: '0s',   // parar tan pronto terminen los usuarios activos
 };
 
 export default function () {
@@ -46,9 +42,11 @@ export default function () {
     '/onlineshop/login?back=addresses',
   ];
 
+  // Un solo ciclo — equivalente a "iterations: 1" de Pulse
   for (const p of paths) {
     http.get(`${host}${p}`, { headers });
   }
 
+  // Pequeña espera para que k6 cierre bien la iteración
   sleep(1);
 }
