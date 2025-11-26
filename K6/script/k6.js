@@ -1,21 +1,27 @@
 import http from 'k6/http';
 import { sleep } from 'k6';
+import exec from 'k6/execution';
 
 export const options = {
   scenarios: {
     pulse_equivalent: {
-      executor: 'ramping-vus',
-      startVUs: 0,
-      stages: [
-        { duration: '120s', target: 25 },   // ramp-up a 25 VUs
-        { duration: '240s', target: 25 },   // mantener hasta 300s total
-      ],
-      gracefulStop: '0s'
+      executor: 'per-vu-iterations',
+      vus: 25,
+      iterations: 1,       // ✔ solo 1 iteración por VU
+      maxDuration: '5m',
     }
   }
 };
 
 export default function () {
+
+  const rampUp = 120;      // 120 segundos
+  const totalVUs = 25;
+  const vuID = exec.vu.idInTest;
+
+  // 🟦 Ramp-up manual perfecto:
+  const delay = ((vuID - 1) * rampUp) / totalVUs;
+  sleep(delay);
 
   const headers = {
     'User-Agent': 'Mozilla/5.0',
@@ -49,10 +55,8 @@ export default function () {
     '/onlineshop/login?back=addresses',
   ];
 
-  // 🔥 Loop infinito hasta que se acabe el escenario (igual que Pulse)
+  // 🟩 1 sola iteración exacta
   for (const p of paths) {
     http.get(`${host}${p}`, { headers });
   }
-
-  sleep(1);  // pausa igual que Pulse
 }
