@@ -8,15 +8,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------------------------------------------
-      # 1. Checkout repo
-      # -------------------------------------------------------
       - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
-      # -------------------------------------------------------
-      # 2. Install JMeter
-      # -------------------------------------------------------
       - name: 💾 Install JMeter
         run: |
           wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.2.tgz
@@ -24,57 +18,50 @@ jobs:
           export JMETER_HOME="$PWD/apache-jmeter-5.6.2"
           echo "$JMETER_HOME/bin" >> $GITHUB_PATH
 
-      # -------------------------------------------------------
-      # 3. Install system monitoring tools
-      # -------------------------------------------------------
       - name: 📦 Install monitoring tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y sysstat gnuplot procps python3
+          sudo apt-get install -y sysstat gnuplot python3
 
-      # -------------------------------------------------------
-      # 4. Start monitors
-      # -------------------------------------------------------
       - name: 🧪 Start system metric monitors (CPU, MEM, Threads, System Load)
         run: |
+          # CPU + Memory timeline
           pidstat -durh 1 > pidstat.log &
           echo $! > pidstat_pid.txt
 
-          (while true; do
-            top -b -n1 | head -40 >> top.log
-            echo "---" >> top.log
-            sleep 2
-          done) &
+          # System-wide metrics
+          (while true; do top -b -n1 | head -40 >> top.log; sleep 2; done) &
           echo $! > top_pid.txt
 
-          (while true; do
-            JMETER_PID=$(pgrep -f "ApacheJMeter" || true)
-            if [ -n "$JMETER_PID" ]; then
-              ps -T -p "$JMETER_PID" >> threads_raw.log 2>/dev/null
-            fi
-            sleep 1
+          # Thread timeline (Java worker threads)
+          (while true; do 
+              JMETER_PID=$(pgrep -f "ApacheJMeter" || true)
+              if [ -n "$JMETER_PID" ]; then 
+                ps -T -p "$JMETER_PID" >> threads_raw.log 2>/dev/null
+              fi
+              sleep 1
           done) &
           echo $! > threads_pid.txt
 
-      # -------------------------------------------------------
-      # 5. Run JMeter
-      # -------------------------------------------------------
       - name: 🚀 Run JMeter Advanced Load Test
         run: |
           echo "Running JMeter advanced test..."
           mkdir -p results
 
+          # /usr/bin/time -v captures:
+          # - Max resident set (MEM)
+          # - CPU %
+          # - Context switches
+          # - Page faults
+          # - Elapsed time
           /usr/bin/time -v \
             jmeter \
               -n \
               -t Jmeter/scripts/jmeter.jmx \
               -l results/jmeter_results.jtl \
               -e -o results/dashboard \
-            2>&1 | tee jmeter.log
+            2> time_metrics.txt
 
-      # -------------------------------------------------------
-      # 6. Stop monitors
-      # -------------------------------------------------------
       - name: 🛑 Stop monitors
         if: always()
         run: |
@@ -82,25 +69,16 @@ jobs:
           kill $(cat top_pid.txt) || true
           kill $(cat threads_pid.txt) || true
 
-      # -------------------------------------------------------
-      # 7. Extract metrics
-      # -------------------------------------------------------
-
       - name: 📊 Extract thread count timeline
         run: |
-          grep -v "PID" threads_raw.log | awk '{print $1}' > threads.log
-          awk '/java/ {print NR "," $1}' threads_raw.log > threads_timeline.csv
+          # Extract only thread IDs (count per sample)
+          grep -v "PID" threads_raw.log | awk '{print $1}' > threads.log || true
 
-      - name: 📈 Extract latency list
+      - name: 📈 Extract latency distribution (p95, p99)
         run: |
+          # Extract elapsed times from JTL (column 2)
           awk -F',' 'NR>1 {print $2}' results/jmeter_results.jtl > latencies.txt
 
-      - name: 📈 Extract latency timeline
-        run: |
-          awk -F',' 'NR>1 {print $1","$2}' results/jmeter_results.jtl > latency_timeline.csv
-
-      - name: 📈 Compute p95 & p99
-        run: |
           awk '{a[NR]=$1} END {
             asort(a)
             p95=a[int(NR*0.95)]
@@ -109,50 +87,47 @@ jobs:
             print "p99_ms="p99 >> "latency_summary.txt"
           }' latencies.txt
 
-      - name: 📈 Extract RPS timeline
-        run: |
-          awk -F',' 'NR>1 {print int($1/1000)}' results/jmeter_results.jtl \
-            | uniq -c \
-            | awk '{print $2","$1}' > rps_timeline.csv
-
       - name: 📦 Create jmeter_summary.json
         run: |
-          python3 << 'EOF'
-import csv, json
+          cat > build_jmeter_summary.py << 'PYCODE'
+          import csv, json
 
-rows = list(csv.DictReader(open("results/jmeter_results.jtl")))
-lat = [int(r["elapsed"]) for r in rows]
+          rows = list(csv.DictReader(open("results/jmeter_results.jtl")))
+          lat = [int(r["elapsed"]) for r in rows]
+          lat_sorted = sorted(lat)
 
-out = {
-  "samples": len(lat),
-  "avg_ms": sum(lat)/len(lat),
-  "p95_ms": sorted(lat)[int(len(lat)*0.95)],
-  "p99_ms": sorted(lat)[int(len(lat)*0.99)]
-}
+          out = {
+              "samples": len(lat),
+              "avg_ms": sum(lat) / len(lat) if lat else 0,
+              "p95_ms": lat_sorted[int(len(lat_sorted) * 0.95)] if lat_sorted else 0,
+              "p99_ms": lat_sorted[int(len(lat_sorted) * 0.99)] if lat_sorted else 0,
+          }
 
-open("jmeter_summary.json","w").write(json.dumps(out, indent=2))
-EOF
+          with open("jmeter_summary.json", "w") as f:
+              json.dump(out, f, indent=2)
+          PYCODE
 
-      # -------------------------------------------------------
-      # 8. Upload ALL artifacts
-      # -------------------------------------------------------
+          python3 build_jmeter_summary.py
+
+      - name: 📈 Extract RPS (Requests Per Second)
+        run: |
+          awk -F',' 'NR>1 {print int($1/1000)"s"}' results/jmeter_results.jtl | \
+            uniq -c | awk '{print $2","$1}' > rps_timeline.csv || true
+
       - name: 📂 Upload Advanced Benchmark Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jmeter-advanced-results
           path: |
-            jmeter.log
             pidstat.log
             top.log
-            threads_raw.log
             threads.log
-            threads_timeline.csv
-            latencies.txt
-            latency_timeline.csv
-            latency_summary.txt
-            rps_timeline.csv
-            jmeter_summary.json
+            threads_raw.log
             time_metrics.txt
             results/
+            latency_summary.txt
+            latencies.txt
+            rps_timeline.csv
+            jmeter_summary.json
             Jmeter/scripts/jmeter.jmx
