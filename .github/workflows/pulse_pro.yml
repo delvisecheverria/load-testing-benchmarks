@@ -1,4 +1,3 @@
-
 name: Pulse Advanced Benchmark
 
 on:
@@ -32,28 +31,44 @@ jobs:
           (while true; do top -b -n1 | head -40 >> top.log; sleep 2; done) &
           echo $! > top_pid.txt
 
-      - name: 🚀 Run Pulse with pprof enabled
+      - name: 🚀 Run Pulse with pprof enabled (capture full logs)
         run: |
           echo "Running Pulse with pprof..."
-          
+
           ./pulse_bin/worker \
             -yaml "Pulse/scripts/pulse.yaml" \
-            &
+            2>&1 | tee pulse.log
 
-          WORKER_PID=$!
-          echo $WORKER_PID > worker_pid.txt
-
-          echo "Worker PID = $WORKER_PID"
-          sleep 3
-
-          # Wait for worker to finish
-          wait $WORKER_PID || true
+          echo "Exit code: $?"
 
       - name: 🛑 Stop background monitors
         if: always()
         run: |
           kill $(cat pidstat_pid.txt) || true
           kill $(cat top_pid.txt)   || true
+
+      - name: 📊 Extract Pulse Metrics (k6-style artifacts)
+        run: |
+          mkdir -p pulse_metrics
+
+          # Extract raw latencies
+          grep "→" pulse.log | awk '{print $NF}' | sed 's/(//;s/ms)//' > pulse_metrics/latencies_raw.txt || true
+
+          # Extract per-request table
+          grep -A 40 "--- PER REQUEST METRICS ---" pulse.log > pulse_metrics/per_request_table.txt || true
+
+          # Extract summary
+          grep -A 20 "--- RESULTS ---" pulse.log > pulse_metrics/summary.txt || true
+
+          # Extract failures
+          grep "Fails" pulse.log > pulse_metrics/fails_raw.txt || true
+
+          # Extract goroutine timeline
+          grep "Goroutines activas" pulse.log > pulse_metrics/goroutines.txt || true
+
+          # Save CPU/RAM
+          cp pidstat.log pulse_metrics/pidstat.log
+          cp top.log pulse_metrics/top.log
 
       - name: 📥 Capture pprof profiles
         run: |
@@ -71,6 +86,8 @@ jobs:
         with:
           name: pulse-advanced-results
           path: |
+            pulse.log
+            pulse_metrics/
             pidstat.log
             top.log
             worker_pid.txt
