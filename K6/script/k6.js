@@ -7,7 +7,7 @@ export const options = {
     pulse_equivalent: {
       executor: 'per-vu-iterations',
       vus: 25,
-      iterations: 1,       // ✔ solo 1 iteración por VU
+      iterations: 1,       // ✔ solo 1 iteración por V
       maxDuration: '5m',
     }
   }
