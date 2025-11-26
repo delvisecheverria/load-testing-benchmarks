@@ -1,7 +1,7 @@
 scenarios:
   - name: recorded_session
     profile:
-      concurrency: 100
+      concurrency: 50
       iterations: 1
       ramp_up: 300s
       startup_delay: 0s
