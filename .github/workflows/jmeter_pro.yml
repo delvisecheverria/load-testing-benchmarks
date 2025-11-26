@@ -89,7 +89,6 @@ jobs:
       - name: 📊 Extract thread count timeline
         run: |
           grep -v "PID" threads_raw.log | awk '{print $1}' > threads.log
-
           awk '/java/ {print NR "," $1}' threads_raw.log > threads_timeline.csv
 
       - name: 📈 Extract latency list
@@ -118,7 +117,7 @@ jobs:
 
       - name: 📦 Create jmeter_summary.json
         run: |
-          python3 - << 'EOF'
+          python3 << 'EOF'
 import csv, json
 
 rows = list(csv.DictReader(open("results/jmeter_results.jtl")))
