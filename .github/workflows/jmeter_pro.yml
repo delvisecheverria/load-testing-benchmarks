@@ -37,21 +37,22 @@ jobs:
       # -------------------------------------------------------
       - name: 🧪 Start system metric monitors (CPU, MEM, Threads, System Load)
         run: |
-          # CPU + Memory timeline
           pidstat -durh 1 > pidstat.log &
           echo $! > pidstat_pid.txt
 
-          # System-wide metrics
-          (while true; do top -b -n1 | head -40 >> top.log; echo "---"; sleep 2; done) &
+          (while true; do
+            top -b -n1 | head -40 >> top.log
+            echo "---" >> top.log
+            sleep 2
+          done) &
           echo $! > top_pid.txt
 
-          # Thread timeline (Java worker threads)
-          (while true; do 
-              JMETER_PID=$(pgrep -f "ApacheJMeter" || true)
-              if [ -n "$JMETER_PID" ]; then 
-                ps -T -p "$JMETER_PID" >> threads_raw.log 2>/dev/null
-              fi
-              sleep 1
+          (while true; do
+            JMETER_PID=$(pgrep -f "ApacheJMeter" || true)
+            if [ -n "$JMETER_PID" ]; then
+              ps -T -p "$JMETER_PID" >> threads_raw.log 2>/dev/null
+            fi
+            sleep 1
           done) &
           echo $! > threads_pid.txt
 
@@ -63,14 +64,13 @@ jobs:
           echo "Running JMeter advanced test..."
           mkdir -p results
 
-          # Capture log + /usr/bin/time metrics + performance dashboard
           /usr/bin/time -v \
             jmeter \
               -n \
               -t Jmeter/scripts/jmeter.jmx \
               -l results/jmeter_results.jtl \
               -e -o results/dashboard \
-              2>&1 | tee jmeter.log
+            2>&1 | tee jmeter.log
 
       # -------------------------------------------------------
       # 6. Stop monitors
@@ -83,28 +83,23 @@ jobs:
           kill $(cat threads_pid.txt) || true
 
       # -------------------------------------------------------
-      # 7. Extract usable metrics
+      # 7. Extract metrics
       # -------------------------------------------------------
 
-      # Thread timeline (clean)
       - name: 📊 Extract thread count timeline
         run: |
-          awk '/java/ {print $1}' threads_raw.log > threads.log
+          grep -v "PID" threads_raw.log | awk '{print $1}' > threads.log
 
-          # Create proper timestamp + thread_count
           awk '/java/ {print NR "," $1}' threads_raw.log > threads_timeline.csv
 
-      # Latency raw list
       - name: 📈 Extract latency list
         run: |
           awk -F',' 'NR>1 {print $2}' results/jmeter_results.jtl > latencies.txt
 
-      # Latency timeline (timestamp + ms)
       - name: 📈 Extract latency timeline
         run: |
           awk -F',' 'NR>1 {print $1","$2}' results/jmeter_results.jtl > latency_timeline.csv
 
-      # p95, p99
       - name: 📈 Compute p95 & p99
         run: |
           awk '{a[NR]=$1} END {
@@ -115,33 +110,32 @@ jobs:
             print "p99_ms="p99 >> "latency_summary.txt"
           }' latencies.txt
 
-      # RPS timeline
       - name: 📈 Extract RPS timeline
         run: |
           awk -F',' 'NR>1 {print int($1/1000)}' results/jmeter_results.jtl \
             | uniq -c \
-            | awk '{print $2","$1}' > rps_timeline.csv || true
+            | awk '{print $2","$1}' > rps_timeline.csv
 
-      # Summary JSON (matching k6)
       - name: 📦 Create jmeter_summary.json
         run: |
           python3 - << 'EOF'
 import csv, json
-rows=list(csv.DictReader(open("results/jmeter_results.jtl")))
-lat=[int(r["elapsed"]) for r in rows]
 
-out={
+rows = list(csv.DictReader(open("results/jmeter_results.jtl")))
+lat = [int(r["elapsed"]) for r in rows]
+
+out = {
   "samples": len(lat),
   "avg_ms": sum(lat)/len(lat),
   "p95_ms": sorted(lat)[int(len(lat)*0.95)],
-  "p99_ms": sorted(lat)[int(len(lat)*0.99)],
+  "p99_ms": sorted(lat)[int(len(lat)*0.99)]
 }
 
 open("jmeter_summary.json","w").write(json.dumps(out, indent=2))
 EOF
 
       # -------------------------------------------------------
-      # 8. Upload ALL artifacts (full parity with Pulse + k6)
+      # 8. Upload ALL artifacts
       # -------------------------------------------------------
       - name: 📂 Upload Advanced Benchmark Artifacts
         if: always()
