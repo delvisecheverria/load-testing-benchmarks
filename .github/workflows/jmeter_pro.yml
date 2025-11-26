@@ -25,35 +25,37 @@ jobs:
 
       - name: 🧪 Start system metric monitors (CPU, MEM, Threads, System Load)
         run: |
-          # CPU + Memory timeline
-          pidstat -durh 1 > pidstat.log &
-          echo $! > pidstat_pid.txt
-
-          # System-wide metrics
-          (while true; do top -b -n1 | head -40 >> top.log; sleep 2; done) &
-          echo $! > top_pid.txt
-
-          # Thread timeline (Java worker threads)
-          (while true; do 
-              JMETER_PID=$(pgrep -f "ApacheJMeter" || true)
-              if [ -n "$JMETER_PID" ]; then 
-                ps -T -p "$JMETER_PID" >> threads_raw.log 2>/dev/null
-              fi
+          # Espera a que JMeter arranque y capture PID
+          (
+            while [ -z "$JM_PID" ]; do
+              JM_PID=$(pgrep -f "ApacheJMeter.jar" || true)
               sleep 1
-          done) &
-          echo $! > threads_pid.txt
+            done
+            echo "JMeter PID: $JM_PID" > jmeter_pid.txt
+
+            # ✅ CPU y RAM reales del proceso Java
+            pidstat -r -u -p $JM_PID 1 > jmeter_pidstat.log &
+            echo $! > pidstat_pid.txt
+
+            # ❤️ Memoria del sistema + CPU total
+            (while true; do top -b -n1 | head -40 >> top.log; sleep 2; done) &
+            echo $! > top_pid.txt
+
+            # ❤️ Conteo de threads del proceso JMeter
+            (while true; do 
+                if [ -n "$JM_PID" ]; then 
+                  ps -T -p "$JM_PID" >> threads_raw.log 2>/dev/null
+                fi
+                sleep 1
+            done) &
+            echo $! > threads_pid.txt
+          ) &
 
       - name: 🚀 Run JMeter Advanced Load Test
         run: |
           echo "Running JMeter advanced test..."
           mkdir -p results
 
-          # /usr/bin/time -v captures:
-          # - Max resident set (MEM)
-          # - CPU %
-          # - Context switches
-          # - Page faults
-          # - Elapsed time
           /usr/bin/time -v \
             jmeter \
               -n \
@@ -71,12 +73,10 @@ jobs:
 
       - name: 📊 Extract thread count timeline
         run: |
-          # Extract only thread IDs (count per sample)
           grep -v "PID" threads_raw.log | awk '{print $1}' > threads.log || true
 
       - name: 📈 Extract latency distribution (p95, p99)
         run: |
-          # Extract elapsed times from JTL (column 2)
           awk -F',' 'NR>1 {print $2}' results/jmeter_results.jtl > latencies.txt
 
           awk '{a[NR]=$1} END {
@@ -120,7 +120,7 @@ jobs:
         with:
           name: jmeter-advanced-results
           path: |
-            pidstat.log
+            jmeter_pidstat.log
             top.log
             threads.log
             threads_raw.log
