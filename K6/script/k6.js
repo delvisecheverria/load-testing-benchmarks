@@ -8,7 +8,7 @@ export const options = {
       startVUs: 0,
       stages: [
         { duration: '120s', target: 25 },   // ramp-up a 25 VUs
-        { duration: '180s', target: 25 },   // mantener hasta 300s total
+        { duration: '240s', target: 25 },   // mantener hasta 300s total
       ],
       gracefulStop: '0s'
     }
