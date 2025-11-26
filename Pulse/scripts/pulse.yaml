@@ -5,7 +5,7 @@ scenarios:
       ramp_up: 120s        # 🔥 igual que k6
       duration: 300s       # 🔥 igual que k6
       startup_delay: 0s
-      iterations: 1
+      #iterations: 1
     cookie_manager:
       enabled: false
       cookies: []
