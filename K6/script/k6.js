@@ -2,14 +2,21 @@ import http from 'k6/http';
 import { sleep } from 'k6';
 
 export const options = {
-  stages: [
-    { duration: '120s', target: 25 },   // ramp-up hasta 1000 users
-    { duration: '300s', target: 25 },   // tiempo para que TODOS terminen su flujo
-  ],
-  gracefulStop: '0s',   // parar tan pronto terminen los usuarios activos
+  scenarios: {
+    pulse_equivalent: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '120s', target: 25 },   // ramp-up a 25 VUs
+        { duration: '180s', target: 25 },   // mantener hasta 300s total
+      ],
+      gracefulStop: '0s'
+    }
+  }
 };
 
 export default function () {
+
   const headers = {
     'User-Agent': 'Mozilla/5.0',
     'Accept': 'text/html',
@@ -42,11 +49,10 @@ export default function () {
     '/onlineshop/login?back=addresses',
   ];
 
-  // Un solo ciclo — equivalente a "iterations: 1" de Pulse
+  // 🔥 Loop infinito hasta que se acabe el escenario (igual que Pulse)
   for (const p of paths) {
     http.get(`${host}${p}`, { headers });
   }
 
-  // Pequeña espera para que k6 cierre bien la iteración
-  sleep(1);
+  sleep(1);  // pausa igual que Pulse
 }
