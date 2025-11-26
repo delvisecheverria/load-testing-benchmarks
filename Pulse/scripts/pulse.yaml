@@ -2,6 +2,7 @@ scenarios:
   - name: recorded_session
     profile:
       concurrency: 25
+      iterations: 1
       ramp_up: 120s        # 🔥 igual que k6
       duration: 300s       # 🔥 igual que k6
       startup_delay: 0s
