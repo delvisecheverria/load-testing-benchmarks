@@ -8,111 +8,71 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------------------------------------------
-      # 1. Checkout repo
-      # -------------------------------------------------------
-      - name: 📥 Checkout repo
+
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      # -------------------------------------------------------
-      # 2. Install monitoring tools (CPU/RAM/threads)
-      # -------------------------------------------------------
-      - name: 📦 Install monitoring tools
+      - name: 🛠 Install k6
         run: |
           sudo apt-get update
-          sudo apt-get install -y sysstat gnuplot jq procps
+          sudo apt-get install -y gnupg2 ca-certificates
+          curl -s https://repo.k6.io/key.gpg | sudo apt-key add -
+          echo "deb https://repo.k6.io/apt stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6 sysstat
 
-      # -------------------------------------------------------
-      # 3. Start monitors
-      # -------------------------------------------------------
-      - name: 🧪 Start system metric monitors
+      - name: 📦 Create folder
+        run: mkdir -p k6_metrics
+
+      - name: 🧪 Start system metric monitors (CPU & RAM)
         run: |
+          # Monitor CPU & RAM of k6 process
           pidstat -durh 1 > pidstat.log &
           echo $! > pidstat_pid.txt
 
-          (while true; do
-             top -b -n1 | head -30 >> top.log
-             echo "---" >> top.log
-             sleep 3
-           done) &
+          # Monitor system top
+          (while true; do top -b -n1 | head -40 >> top.log; sleep 2; done) &
           echo $! > top_pid.txt
 
-          (while true; do
-             PID=$(pgrep -f "k6" || true)
-             if [ ! -z "$PID" ]; then
-               ps -T -p "$PID" >> threads_raw.log 2>/dev/null || true
-             fi
-             sleep 1
-           done) &
-          echo $! > threads_pid.txt
-
-      # -------------------------------------------------------
-      # 4. Install k6 the correct way
-      # -------------------------------------------------------
-      - name: 🟢 Setup K6 (Official)
-        uses: grafana/setup-k6-action@v1
-
-      # -------------------------------------------------------
-      # 5. Create results folder (IMPORTANT FIX)
-      # -------------------------------------------------------
-      - name: 📁 Create results folder for summary JSON
+      - name: 🚀 Run k6 script with summary export
         run: |
-          echo "Working directory:"
-          pwd
-          mkdir -p results
-          ls -la
+          echo "Running k6 test..."
 
-      # -------------------------------------------------------
-      # 6. Run K6 using wrapper (produces real execution)
-      # -------------------------------------------------------
-      - name: 🚀 Run K6 Test
-        id: k6_run
-        uses: grafana/run-k6-action@v1
-        with:
-          path: ./K6/script/k6.js
-          debug: true
-          flags: --summary-export=results/k6_summary.json
-          fail-fast: false
-          parallel: false
+          k6 run \
+            --summary-export=k6_summary.json \
+            --log-format=raw \
+            k6/script.js 2>&1 | tee k6.log
 
-      # -------------------------------------------------------
-      # 7. Stop monitoring processes
-      # -------------------------------------------------------
-      - name: 🛑 Stop background monitors
+          echo "Exit code: $?"
+
+      - name: 🛑 Stop monitors
         if: always()
         run: |
           kill $(cat pidstat_pid.txt) || true
           kill $(cat top_pid.txt) || true
-          kill $(cat threads_pid.txt) || true
 
-      # -------------------------------------------------------
-      # 8. Extract metrics (p95, p99, RPS)
-      # -------------------------------------------------------
-      - name: 📉 Extract p95+p99 & RPS
+      - name: 📊 Extract k6 Metrics (like Pulse)
         run: |
-          if [ -f results/k6_summary.json ]; then
-            jq '.metrics.http_req_duration.percentiles."95"' results/k6_summary.json > p95.txt
-            jq '.metrics.http_req_duration.percentiles."99"' results/k6_summary.json > p99.txt
-            jq '.metrics.http_reqs.rate' results/k6_summary.json > rps.txt
-          else
-            echo "❌ results/k6_summary.json not found"
-            echo "Skipping jq metric extraction"
-          fi
+          mkdir -p k6_metrics
 
-      # -------------------------------------------------------
-      # 9. Upload every artifact
-      # -------------------------------------------------------
-      - name: 📂 Upload K6 Advanced Benchmark Artifacts
+          # CPU / RAM
+          cp pidstat.log k6_metrics/pidstat.log
+          cp top.log k6_metrics/top.log
+
+          # Summary JSON
+          cp k6_summary.json k6_metrics/k6_summary.json
+
+          # Full console output
+          cp k6.log k6_metrics/k6.log
+
+      - name: 📂 Upload k6 benchmark artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: k6-advanced-results
           path: |
+            k6_metrics/
             pidstat.log
             top.log
-            threads_raw.log
-            results/
-            p95.txt
-            p99.txt
-            rps.txt
-            K6/script/k6.js
+            k6_summary.json
+            k6.log
