@@ -35,9 +35,18 @@ jobs:
         run: |
           echo "Running Pulse with pprof..."
 
+          # Run Pulse in background so we can capture PID
           ./pulse_bin/worker \
             -yaml "Pulse/scripts/pulse.yaml" \
-            2>&1 | tee pulse.log
+            2>&1 | tee pulse.log &
+
+          WORKER_PID=$!
+          echo $WORKER_PID > worker_pid.txt
+
+          echo "Worker PID = $WORKER_PID"
+
+          # Wait until Pulse finishes
+          wait $WORKER_PID || true
 
           echo "Exit code: $?"
 
@@ -51,22 +60,22 @@ jobs:
         run: |
           mkdir -p pulse_metrics
 
-          # Extract raw latencies
+          # Raw latencies
           grep "→" pulse.log | awk '{print $NF}' | sed 's/(//;s/ms)//' > pulse_metrics/latencies_raw.txt || true
 
-          # Extract per-request table
+          # Per-request table
           grep -A 40 "--- PER REQUEST METRICS ---" pulse.log > pulse_metrics/per_request_table.txt || true
 
-          # Extract summary
+          # Summary
           grep -A 20 "--- RESULTS ---" pulse.log > pulse_metrics/summary.txt || true
 
-          # Extract failures
+          # Failures
           grep "Fails" pulse.log > pulse_metrics/fails_raw.txt || true
 
-          # Extract goroutine timeline
+          # Goroutine timeline
           grep "Goroutines activas" pulse.log > pulse_metrics/goroutines.txt || true
 
-          # Save CPU/RAM
+          # Copy CPU/RAM monitors
           cp pidstat.log pulse_metrics/pidstat.log
           cp top.log pulse_metrics/top.log
 
