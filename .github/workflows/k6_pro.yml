@@ -1,4 +1,4 @@
-name: K6 Advanced Benchmark
+name: k6 Advanced Benchmark
 
 on:
   workflow_dispatch:
@@ -8,71 +8,85 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
-      - name: 📥 Checkout
+      - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
-      - name: 🛠 Install k6
+      - name: 💾 Install k6 (tar.gz, sin apt-key)
+        run: |
+          set -e
+          K6_VERSION=v0.52.0
+
+          echo "⬇️ Downloading k6 ${K6_VERSION}..."
+          curl -L "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" -o k6.tar.gz
+
+          echo "📦 Unpacking..."
+          tar -xzf k6.tar.gz
+
+          echo "🚚 Moving k6 to /usr/local/bin..."
+          sudo mv "k6-${K6_VERSION}-linux-amd64/k6" /usr/local/bin/k6
+          sudo chmod +x /usr/local/bin/k6
+
+          echo "✅ k6 installed:"
+          k6 version
+
+      - name: 📦 Install system monitoring tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gnupg2 ca-certificates
-          curl -s https://repo.k6.io/key.gpg | sudo apt-key add -
-          echo "deb https://repo.k6.io/apt stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6 sysstat
+          sudo apt-get install -y sysstat
 
-      - name: 📦 Create folder
-        run: mkdir -p k6_metrics
-
-      - name: 🧪 Start system metric monitors (CPU & RAM)
+      - name: 🧪 Start system metric monitors
         run: |
-          # Monitor CPU & RAM of k6 process
+          # CPU / RAM por proceso
           pidstat -durh 1 > pidstat.log &
           echo $! > pidstat_pid.txt
 
-          # Monitor system top
+          # Snapshot de top cada 2s
           (while true; do top -b -n1 | head -40 >> top.log; sleep 2; done) &
           echo $! > top_pid.txt
 
-      - name: 🚀 Run k6 script with summary export
+      - name: 🚀 Run k6 test (summary + CSV)
         run: |
-          echo "Running k6 test..."
+          mkdir -p results
 
+          echo "▶ Running k6 with summary export and CSV metrics..."
           k6 run \
-            --summary-export=k6_summary.json \
-            --log-format=raw \
-            k6/script.js 2>&1 | tee k6.log
+            --summary-export=results/summary.json \
+            --out csv=results/metrics.csv \
+            k6/scripts/test.js \
+            2>&1 | tee k6.log
 
-          echo "Exit code: $?"
-
-      - name: 🛑 Stop monitors
+      - name: 🛑 Stop system metric monitors
         if: always()
         run: |
-          kill $(cat pidstat_pid.txt) || true
-          kill $(cat top_pid.txt) || true
+          kill "$(cat pidstat_pid.txt)" || true
+          kill "$(cat top_pid.txt)"     || true
 
-      - name: 📊 Extract k6 Metrics (like Pulse)
+      - name: 📊 Extract k6 metrics (alineado con Pulse)
         run: |
           mkdir -p k6_metrics
 
-          # CPU / RAM
+          # Latencias crudas (http_req_duration) desde metrics.csv
+          # Formato CSV por defecto: time,metric,value,....
+          awk -F',' 'NR>1 && $3=="http_req_duration" {print $1","$5}' results/metrics.csv > k6_metrics/http_req_duration_timeline.csv || true
+
+          # Timeline de VUs
+          awk -F',' 'NR>1 && $3=="vus" {print $1","$5}' results/metrics.csv > k6_metrics/vus_timeline.csv || true
+
+          # http_reqs (para aproximar RPS)
+          awk -F',' 'NR>1 && $3=="http_reqs" {print $1","$5}' results/metrics.csv > k6_metrics/http_reqs_timeline.csv || true
+
+          # Copiamos CPU/RAM crudos
           cp pidstat.log k6_metrics/pidstat.log
-          cp top.log k6_metrics/top.log
+          cp top.log      k6_metrics/top.log
 
-          # Summary JSON
-          cp k6_summary.json k6_metrics/k6_summary.json
-
-          # Full console output
-          cp k6.log k6_metrics/k6.log
-
-      - name: 📂 Upload k6 benchmark artifact
+      - name: 📂 Upload k6 Advanced Benchmark Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: k6-advanced-results
           path: |
+            k6.log
+            results/
             k6_metrics/
             pidstat.log
             top.log
-            k6_summary.json
-            k6.log
