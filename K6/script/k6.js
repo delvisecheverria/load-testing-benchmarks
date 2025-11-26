@@ -3,8 +3,8 @@ import { sleep } from 'k6';
 
 export const options = {
   stages: [
-    { duration: '300s', target: 100 },   // ramp-up hasta 1000 users
-    { duration: '600s', target: 100 },   // tiempo para que TODOS terminen su flujo
+    { duration: '300s', target: 50 },   // ramp-up hasta 1000 users
+    { duration: '600s', target: 50 },   // tiempo para que TODOS terminen su flujo
   ],
   gracefulStop: '0s',   // parar tan pronto terminen los usuarios activos
 };
