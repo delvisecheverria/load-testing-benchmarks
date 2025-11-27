@@ -6,17 +6,17 @@ export const options = {
   scenarios: {
     pulse_equivalent: {
       executor: 'per-vu-iterations',
-      vus: 100,
+      vus: 1000,
       iterations: 1,       // ✔ solo 1 iteración por V
-      maxDuration: '5m',
+      maxDuration: '15m',
     }
   }
 };
 
 export default function () {
 
-  const rampUp = 120;      // 120 segundos
-  const totalVUs = 25;
+  const rampUp = 300;      // 120 segundos
+  const totalVUs = 1000;
   const vuID = exec.vu.idInTest;
 
   // 🟦 Ramp-up manual perfecto:
